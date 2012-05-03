@@ -1,0 +1,2 @@
+tar: cloud-init
+copy: *.cfg
