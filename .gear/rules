@@ -1,2 +1,3 @@
 tar: cloud-init
 copy: *.cfg
+copy: *.patch
