@@ -250,7 +250,7 @@ locale_configfile: /etc/default/locale
 # rsyslog_dir default: /etc/rsyslog.d
 # rsyslog_filename default: 20-cloud-config.conf
 rsyslog:
- - ':syslogtag, isequal, "[CLOUDINIT]" /var/log/cloud-foo.log'
+ - ':programname, isequal, "cloud-init" /var/log/cloud-foo.log'
  - content: "*.*   @@192.0.2.1:10514"
  - filename: 01-examplecom.conf
    content: "*.*   @@syslogd.example.com"
