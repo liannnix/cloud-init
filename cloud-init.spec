@@ -14,7 +14,11 @@ Patch1: %name-0.7.6-alt-sshd-config.patch
 Patch2: %name-add-alt-distro.patch
 
 BuildArch: noarch
-BuildRequires: python-devel python-module-distribute python-module-nose python-module-mocker python-module-yaml python-module-cheetah python-module-oauth
+BuildRequires: python-devel python-module-distribute python-module-nose python-module-mocker
+BuildRequires: python-module-yaml python-module-cheetah python-module-oauth
+# For tests
+BuildRequires: python-modules-json python-module-requests python-module-jsonpatch python-module-configobj
+BuildRequires: python-module-httpretty python-module-serial iproute2 util-linux net-tools python-module-jinja
 
 Requires: systemd-sysvinit sudo
 
