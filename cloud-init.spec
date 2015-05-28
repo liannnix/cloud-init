@@ -1,17 +1,16 @@
-Name: cloud-init
-Version: 0.6.3
+Name:    cloud-init
+Version: 0.7.6
 Release: alt1
-Summary: Cloud instance init scripts
 
-Group: System/Configuration/Boot and Init
+Summary: Cloud instance init scripts
+Group:   System/Configuration/Boot and Init
 License: GPLv3
-Url: http://launchpad.net/cloud-init
+Url:     http://launchpad.net/cloud-init
 
 Source0: %name-%version.tar
 Source1: %name-alt.cfg
 
-Patch1: %name-0.6.3-lp970071.patch
-Patch2: %name-0.6.3-alt-sshd-config.patch
+Patch1: %name-0.7.6-alt-sshd-config.patch
 
 BuildArch: noarch
 BuildRequires: python-devel python-module-distribute python-module-nose python-module-mocker python-module-yaml python-module-cheetah python-module-oauth
@@ -25,8 +24,7 @@ ssh keys and to let the user run various scripts.
 
 %prep
 %setup
-%patch1 -p1
-%patch2 -p2
+%patch1 -p2
 
 %build
 %python_build
@@ -92,6 +90,9 @@ fi
 %dir %_sharedstatedir/cloud
 
 %changelog
+* Thu May 28 2015 Andrey Cherepanov <cas@altlinux.org> 0.7.6-alt1
+- New version
+
 * Thu May 03 2012 Vitaly Kuznetsov <vitty@altlinux.ru> 0.6.3-alt1
 - initial
 
