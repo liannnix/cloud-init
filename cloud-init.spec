@@ -11,6 +11,7 @@ Source0: %name-%version.tar
 Source1: %name-alt.cfg
 
 Patch1: %name-0.7.6-alt-sshd-config.patch
+Patch2: %name-add-alt-distro.patch
 
 BuildArch: noarch
 BuildRequires: python-devel python-module-distribute python-module-nose python-module-mocker python-module-yaml python-module-cheetah python-module-oauth
@@ -25,6 +26,7 @@ ssh keys and to let the user run various scripts.
 %prep
 %setup
 %patch1 -p2
+%patch2 -p2
 
 %build
 %python_build
