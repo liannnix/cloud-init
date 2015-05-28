@@ -1,0 +1,26 @@
+diff --git a/cloud-init/cloudinit/config/cc_disk_setup.py b/cloud-init/cloudinit/config/cc_disk_setup.py
+index 1660832..2c20d3f 100644
+--- a/cloud-init/cloudinit/config/cc_disk_setup.py
++++ b/cloud-init/cloudinit/config/cc_disk_setup.py
+@@ -28,7 +28,7 @@ frequency = PER_INSTANCE
+ UDEVADM_CMD = util.which('udevadm')
+ SFDISK_CMD = util.which("sfdisk")
+ LSBLK_CMD = util.which("lsblk")
+-BLKID_CMD = util.which("blkid")
++BLKID_CMD = util.which("/sbin/blkid")
+ BLKDEV_CMD = util.which("blockdev")
+ WIPEFS_CMD = util.which("wipefs")
+ 
+diff --git a/cloud-init/cloudinit/util.py b/cloud-init/cloudinit/util.py
+index f236d0b..fb04bdf 100644
+--- a/cloud-init/cloudinit/util.py
++++ b/cloud-init/cloudinit/util.py
+@@ -1020,7 +1020,7 @@ def find_devs_with(criteria=None, oformat='device',
+       LABEL=<label>
+       UUID=<uuid>
+     """
+-    blk_id_cmd = ['blkid']
++    blk_id_cmd = ['/sbin/blkid']
+     options = []
+     if criteria:
+         # Search for block devices with tokens named NAME that

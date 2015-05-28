@@ -12,6 +12,7 @@ Source1: %name-alt.cfg
 
 Patch1: %name-0.7.6-alt-sshd-config.patch
 Patch2: %name-add-alt-distro.patch
+Patch3: %name-0.7.6-alt-blkid-path.patch
 
 BuildArch: noarch
 BuildRequires: python-devel python-module-distribute python-module-nose python-module-mocker
@@ -31,6 +32,7 @@ ssh keys and to let the user run various scripts.
 %setup
 %patch1 -p2
 %patch2 -p2
+%patch3 -p2
 
 %build
 %python_build
