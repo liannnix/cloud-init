@@ -35,18 +35,12 @@ ssh keys and to let the user run various scripts.
 make test
 
 %install
-%python_install
-
-for x in %buildroot/%_bindir/*.py; do mv "$x" "${x%%.py}"; done
-chmod +x %buildroot/%python_sitelibdir/cloudinit/SshUtil.py
-mkdir -p %buildroot/%_sharedstatedir/cloud
+%python_install --init-system=systemd
 
 # We supply our own config file since our software differs from Ubuntu's.
 cp -p %SOURCE1 %buildroot/%_sysconfdir/cloud/cloud.cfg
 
-# Install the systemd bits
-mkdir -p        %buildroot/%systemd_unitdir
-cp -p systemd/* %buildroot/%systemd_unitdir
+mkdir -p %buildroot/%_sharedstatedir/cloud
 
 %pre
 %_sbindir/useradd -G wheel -c "EC2 administrative account" ec2-user >/dev/null 2>&1 ||:
