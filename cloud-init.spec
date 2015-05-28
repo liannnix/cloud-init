@@ -74,7 +74,7 @@ if [ $1 -eq 0 ] ; then
 fi
 
 %files
-%doc ChangeLog TODO
+%doc ChangeLog TODO.rst
 %config(noreplace) %_sysconfdir/cloud/cloud.cfg
 %dir               %_sysconfdir/cloud/cloud.cfg.d
 %config(noreplace) %_sysconfdir/cloud/cloud.cfg.d/*.cfg
