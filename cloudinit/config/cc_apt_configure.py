@@ -25,7 +25,7 @@ import re
 from cloudinit import templater
 from cloudinit import util
 
-distros = ['ubuntu', 'debian']
+distros = ['ubuntu', 'debian', 'altlinux']
 
 PROXY_TPL = "Acquire::HTTP::Proxy \"%s\";\n"
 APT_CONFIG_FN = "/etc/apt/apt.conf.d/94cloud-init-config"

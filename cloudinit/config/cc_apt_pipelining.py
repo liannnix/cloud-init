@@ -21,7 +21,7 @@ from cloudinit import util
 
 frequency = PER_INSTANCE
 
-distros = ['ubuntu', 'debian']
+distros = ['ubuntu', 'debian', 'altlinux']
 
 DEFAULT_FILE = "/etc/apt/apt.conf.d/90cloud-init-pipelining"
 
