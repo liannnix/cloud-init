@@ -1,3 +1,2 @@
-tar: cloud-init
-copy: *.cfg
-copy: *.patch
+tar: @version@:.
+diff: @version@:. altlinux:.
