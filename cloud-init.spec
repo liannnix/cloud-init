@@ -87,6 +87,7 @@ make test noseopts="-I test_cloudstack.py"
 %doc               %_sysconfdir/cloud/cloud.cfg.d/README
 %dir               %_sysconfdir/cloud/templates
 %config(noreplace) %_sysconfdir/cloud/templates/*
+/lib/udev/rules.d/66-azure-ephemeral.rules
 %_initdir/*
 %_unitdir/*
 %_tmpfilesdir/
