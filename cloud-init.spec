@@ -8,7 +8,6 @@ License: GPLv3
 Url:     http://launchpad.net/cloud-init
 
 Source0: %name-%version.tar
-Source1: %name-alt.cfg
 
 Patch1: %name-%version-%release.patch
 
@@ -45,34 +44,36 @@ make test noseopts="-I test_netconfig.py"
 %install
 %python_install --init-system=systemd
 
-# We supply our own config file since our software differs from Ubuntu's.
-cp -p %SOURCE1 %buildroot/%_sysconfdir/cloud/cloud.cfg
+install -pD -m644 altlinux/cloud-init-alt.cfg %buildroot%_sysconfdir/cloud/cloud.cfg
+install -pD -m644 altlinux/cloud-init-tmpfiles.conf %buildroot%_tmpfilesdir/cloud-init.conf
+install -pD -m755 altlinux/cloud-config %buildroot%_initdir/cloud-config
+install -pD -m755 altlinux/cloud-final %buildroot%_initdir/cloud-final
+install -pD -m755 altlinux/cloud-init %buildroot%_initdir/cloud-init
+install -pD -m755 altlinux/cloud-init-local %buildroot%_initdir/cloud-init-local
 
-mkdir -p %buildroot/%_sharedstatedir/cloud
+mkdir -p %buildroot%_sharedstatedir/cloud
 
-%pre
-%_sbindir/useradd -G wheel -c "EC2 administrative account" ec2-user >/dev/null 2>&1 ||:
+# Don't ship the tests
+rm -r %buildroot%python_sitelibdir/tests
+
+# Remove non-ALTLinux templates
+rm %buildroot/%_sysconfdir/cloud/templates/*.debian.*
+rm %buildroot/%_sysconfdir/cloud/templates/*.freebsd.*
+rm %buildroot/%_sysconfdir/cloud/templates/*.redhat.*
+rm %buildroot/%_sysconfdir/cloud/templates/*.suse.*
+rm %buildroot/%_sysconfdir/cloud/templates/*.ubuntu.*
 
 %post
-if [ $1 -eq 1 ] ; then
-    # Initial installation
-    # Enabled by default per "runs once then goes away" exception
-    /bin/systemctl enable cloud-config.service     >/dev/null 2>&1 || :
-    /bin/systemctl enable cloud-final.service      >/dev/null 2>&1 || :
-    /bin/systemctl enable cloud-init.service       >/dev/null 2>&1 || :
-    /bin/systemctl enable cloud-init-local.service >/dev/null 2>&1 || :
-    echo "%%wheel ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-fi
+%post_service cloud-config
+%post_service cloud-final
+%post_service cloud-init
+%post_service cloud-init-local
 
 %preun
-if [ $1 -eq 0 ] ; then
-    # Package removal, not upgrade
-    /bin/systemctl --no-reload disable cloud-config.service >/dev/null 2>&1 || :
-    /bin/systemctl --no-reload disable cloud-final.service  >/dev/null 2>&1 || :
-    /bin/systemctl --no-reload disable cloud-init.service   >/dev/null 2>&1 || :
-    /bin/systemctl --no-reload disable cloud-init-local.service >/dev/null 2>&1 || :
-    # One-shot services -> no need to stop
-fi
+%preun_service cloud-config
+%preun_service cloud-final
+%preun_service cloud-init
+%preun_service cloud-init-local
 
 %files
 %doc ChangeLog TODO.rst
@@ -82,13 +83,11 @@ fi
 %doc               %_sysconfdir/cloud/cloud.cfg.d/README
 %dir               %_sysconfdir/cloud/templates
 %config(noreplace) %_sysconfdir/cloud/templates/*
-%systemd_unitdir/cloud-config.service
-%systemd_unitdir/cloud-config.target
-%systemd_unitdir/cloud-final.service
-%systemd_unitdir/cloud-init-local.service
-%systemd_unitdir/cloud-init.service
+%_initdir/*
+%_unitdir/*
+%_tmpfilesdir/
 %python_sitelibdir/*
-/usr/lib/%name
+%_libexec/%name
 %_bindir/cloud-init*
 %doc %_datadir/doc/%name
 %dir %_sharedstatedir/cloud
@@ -97,6 +96,8 @@ fi
 * Wed Dec 02 2015 Alexey Shabalin <shaba@altlinux.ru> 0.7.6-alt2.20151202
 - upstream snapshot
 - add ALTLinux support
+- add SysV init scripts
+- don't add ec2-user user
 
 * Thu May 28 2015 Andrey Cherepanov <cas@altlinux.org> 0.7.6-alt1
 - New version
