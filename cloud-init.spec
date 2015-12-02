@@ -48,6 +48,8 @@ install -pD -m755 altlinux/cloud-final %buildroot%_initdir/cloud-final
 install -pD -m755 altlinux/cloud-init %buildroot%_initdir/cloud-init
 install -pD -m755 altlinux/cloud-init-local %buildroot%_initdir/cloud-init-local
 
+mkdir -p %buildroot%_libexecdir
+mv %buildroot/usr/libexec/%name %buildroot%_libexecdir/
 mkdir -p %buildroot%_sharedstatedir/cloud
 
 # Don't ship the tests
