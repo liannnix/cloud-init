@@ -1,7 +1,7 @@
 #!/bin/sh
 # cloud-init      Initial cloud-init job (metadata service crawler).
 #
-# chkconfig: - 90 10
+# chkconfig: - 13 80
 # description:  Start cloud-init and runs the init phase \
 #               dand any associated init modules as desired.
 # processname: cloud-init

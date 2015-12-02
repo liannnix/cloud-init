@@ -1,7 +1,7 @@
 #!/bin/sh
 # cloud-init-local      Initial cloud-init job (pre-networking).
 #
-# chkconfig: - 90 10
+# chkconfig: - 9 91
 # description:  Start cloud-init and runs the init-local phase \
 #               dand any associated init-local modules as desired.
 # processname: cloud-init
