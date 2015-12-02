@@ -28,10 +28,11 @@ from cloudinit import util
 LOG = logging.getLogger(__name__)
 
 # See: man sshd_config
-DEF_SSHD_CFG = "/etc/ssh/sshd_config"
+DEF_SSHD_CFG = "/etc/openssh/sshd_config"
 
 # taken from openssh source key.c/key_type_from_name
 VALID_KEY_TYPES = ("rsa", "dsa", "ssh-rsa", "ssh-dss", "ecdsa",
+    "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
     "ssh-rsa-cert-v00@openssh.com", "ssh-dss-cert-v00@openssh.com",
     "ssh-rsa-cert-v00@openssh.com", "ssh-dss-cert-v00@openssh.com",
     "ssh-rsa-cert-v01@openssh.com", "ssh-dss-cert-v01@openssh.com",
