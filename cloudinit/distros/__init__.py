@@ -48,6 +48,7 @@ OSFAMILIES = {
     'freebsd': ['freebsd'],
     'suse': ['sles'],
     'arch': ['arch'],
+    'altlinux': ['altlinux'],
 }
 
 LOG = logging.getLogger(__name__)
