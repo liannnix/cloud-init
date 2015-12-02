@@ -79,9 +79,9 @@ def handle(name, cfg, cloud, log, args):
     all_keys['fqdn'] = cloud.get_hostname(fqdn=True)
 
     pubkeys = {
-        'pub_key_dsa': '/etc/ssh/ssh_host_dsa_key.pub',
-        'pub_key_rsa': '/etc/ssh/ssh_host_rsa_key.pub',
-        'pub_key_ecdsa': '/etc/ssh/ssh_host_ecdsa_key.pub',
+        'pub_key_dsa': '/etc/openssh/ssh_host_dsa_key.pub',
+        'pub_key_rsa': '/etc/openssh/ssh_host_rsa_key.pub',
+        'pub_key_ecdsa': '/etc/openssh/ssh_host_ecdsa_key.pub',
     }
 
     for (n, path) in pubkeys.items():
