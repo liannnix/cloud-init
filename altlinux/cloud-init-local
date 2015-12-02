@@ -1,0 +1,86 @@
+#!/bin/sh
+# cloud-init-local      Initial cloud-init job (pre-networking).
+#
+# chkconfig: - 90 10
+# description:  Start cloud-init and runs the init-local phase \
+#               dand any associated init-local modules as desired.
+# processname: cloud-init
+# config: /etc/cloud/cloud.cfg
+#
+### BEGIN INIT INFO
+# Provides:          cloud-init-local
+# Required-Start:    $local_fs
+# Should-Start:      $time
+# Required-Stop:
+# Should-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Initial cloud-init job (pre-networking)
+# Description:       Start cloud-init and runs the initialization phases
+#	and any associated initial modules as desired.
+### END INIT INFO
+
+# Do not load RH compatibility interface.
+WITHOUT_RC_COMPAT=1
+
+# Source function library.
+. /etc/init.d/functions
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+RETVAL=0
+
+DAEMON
+NAME="cloud-init"
+DAEMON="/usr/bin/$NAME"
+SourceIfNotEmpty /etc/sysconfig/$NAME
+
+start()
+{
+	msg_starting $"Starting init-local $NAME: "
+	$DAEMON $CLOUDINITARGS init --local
+	RETVAL=$?
+	return $RETVAL
+}
+
+stop() {
+	msg_stopping $"Shutting down $NAME: "
+	# No-op
+	RETVAL=7
+	return $RETVAL
+}
+
+case "$1" in
+    start)
+	start
+	RETVAL=$?
+	;;
+    stop)
+	stop
+	RETVAL=$?
+	;;
+    restart|try-restart|condrestart)
+	start
+	RETVAL=$?
+	;;
+    reload|force-reload)
+	# It does not support reload
+	RETVAL=3
+	;;
+    status)
+        echo -n $"Checking for service $NAME:"
+        # Return value is slightly different for the status command:
+        # 0 - service up and running
+        # 1 - service dead, but /var/run/  pid  file exists
+        # 2 - service dead, but /var/lock/ lock file exists
+        # 3 - service not running (unused)
+        # 4 - service status unknown :-(
+        # 5--199 reserved (5--99 LSB, 100--149 distro, 150--199 appl.)
+        RETVAL=3
+	;;
+    *)
+	msg_usage "${0##*/} {start|stop|status|try-restart|condrestart|restart|force-reload|reload}"
+        RETVAL=1
+	;;
+esac
+
+exit $RETVAL
