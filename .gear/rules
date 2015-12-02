@@ -1,2 +1,2 @@
 tar: @version@:.
-diff: @version@:. altlinux:.
+diff: @version@:. .

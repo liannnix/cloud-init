@@ -1,6 +1,6 @@
 Name:    cloud-init
 Version: 0.7.6
-Release: alt1
+Release: alt2.20151202
 
 Summary: Cloud instance init scripts
 Group:   System/Configuration/Boot and Init
@@ -10,9 +10,7 @@ Url:     http://launchpad.net/cloud-init
 Source0: %name-%version.tar
 Source1: %name-alt.cfg
 
-Patch1: %name-0.7.6-alt-sshd-config.patch
-Patch2: %name-add-alt-distro.patch
-Patch3: %name-0.7.6-alt-blkid-path.patch
+Patch1: %name-%version-%release.patch
 
 BuildArch: noarch
 BuildRequires: python-devel python-module-distribute python-module-nose python-module-mocker
@@ -21,7 +19,12 @@ BuildRequires: python-module-yaml python-module-cheetah python-module-oauth
 BuildRequires: python-modules-json python-module-requests python-module-jsonpatch python-module-configobj
 BuildRequires: python-module-httpretty python-module-serial iproute2 util-linux net-tools python-module-jinja2
 
-Requires: systemd-sysvinit sudo
+Requires: sudo
+Requires: e2fsprogs
+Requires: procps
+Requires: iproute net-tools
+Requires: shadow-utils
+Requires: /bin/run-parts
 
 %description
 Cloud-init is a set of init scripts for cloud instances.  Cloud instances
@@ -30,9 +33,7 @@ ssh keys and to let the user run various scripts.
 
 %prep
 %setup
-%patch1 -p2
-%patch2 -p2
-%patch3 -p2
+%patch1 -p1
 
 %build
 %python_build
@@ -93,6 +94,10 @@ fi
 %dir %_sharedstatedir/cloud
 
 %changelog
+* Wed Dec 02 2015 Alexey Shabalin <shaba@altlinux.ru> 0.7.6-alt2.20151202
+- upstream snapshot
+- add ALTLinux support
+
 * Thu May 28 2015 Andrey Cherepanov <cas@altlinux.org> 0.7.6-alt1
 - New version
 
