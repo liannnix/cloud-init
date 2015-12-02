@@ -15,7 +15,7 @@ key_blist=",${2},"
 echo
 echo "#############################################################"
 echo "-----BEGIN SSH HOST KEY FINGERPRINTS-----"
-for f in /etc/ssh/ssh_host_*key.pub; do
+for f in /etc/openssh/ssh_host_*key.pub; do
     [ -f "$f" ] || continue
     read ktype line < "$f"
     # skip the key if its type is in the blacklist
@@ -28,7 +28,7 @@ echo "#############################################################"
 } | logger $logger_opts
 
 echo "-----BEGIN SSH HOST KEY KEYS-----"
-for f in /etc/ssh/ssh_host_*key.pub; do
+for f in /etc/openssh/ssh_host_*key.pub; do
     [ -f "$f" ] || continue
     read ktype line < "$f"
     # skip the key if its type is in the blacklist
