@@ -45,7 +45,7 @@ start()
 stop() {
 	msg_stopping $"Shutting down $NAME: "
 	# No-op
-	RETVAL=7
+	RETVAL=1
 	return $RETVAL
 }
 
