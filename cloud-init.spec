@@ -87,7 +87,7 @@ rm %buildroot/%_sysconfdir/cloud/templates/*.ubuntu.*
 %_unitdir/*
 %_tmpfilesdir/
 %python_sitelibdir/*
-%_libexec/%name
+%_libexecdir/%name
 %_bindir/cloud-init*
 %doc %_datadir/doc/%name
 %dir %_sharedstatedir/cloud
