@@ -12,11 +12,12 @@ Source0: %name-%version.tar
 Patch1: %name-%version-%release.patch
 
 BuildArch: noarch
+
 BuildRequires: python-devel python-module-distribute python-module-nose python-module-mocker
 BuildRequires: python-module-yaml python-module-cheetah python-module-oauth
 # For tests
-BuildRequires: python-modules-json python-module-requests python-module-jsonpatch python-module-configobj
-BuildRequires: python-module-httpretty python-module-serial iproute2 util-linux net-tools python-module-jinja2
+BuildRequires: python-modules-json python-module-requests python-module-jsonpatch python-module-configobj python-module-mock python-module-oauthlib
+BuildRequires: python-module-httpretty python-module-serial iproute2 util-linux net-tools python-module-jinja2 python-module-contextlib2 python-module-prettytable
 
 Requires: sudo
 Requires: e2fsprogs
@@ -37,10 +38,6 @@ ssh keys and to let the user run various scripts.
 %build
 %python_build
 
-%check
-# Ignore test_netconfig.py because test_simple_write_freebsd is broken
-make test noseopts="-I test_netconfig.py"
-
 %install
 %python_install --init-system=systemd
 
@@ -57,11 +54,16 @@ mkdir -p %buildroot%_sharedstatedir/cloud
 rm -r %buildroot%python_sitelibdir/tests
 
 # Remove non-ALTLinux templates
-rm %buildroot/%_sysconfdir/cloud/templates/*.debian.*
-rm %buildroot/%_sysconfdir/cloud/templates/*.freebsd.*
-rm %buildroot/%_sysconfdir/cloud/templates/*.redhat.*
-rm %buildroot/%_sysconfdir/cloud/templates/*.suse.*
-rm %buildroot/%_sysconfdir/cloud/templates/*.ubuntu.*
+rm %buildroot%_sysconfdir/cloud/templates/*.debian.*
+rm %buildroot%_sysconfdir/cloud/templates/*.freebsd.*
+rm %buildroot%_sysconfdir/cloud/templates/*.redhat.*
+rm %buildroot%_sysconfdir/cloud/templates/*.suse.*
+rm %buildroot%_sysconfdir/cloud/templates/*.ubuntu.*
+
+%check
+export PATH=/sbin:/usr/sbin:/bin:/usr/bin:$PATH
+# Ignore test_netconfig.py because test_simple_write_freebsd is broken
+make test noseopts="-I test_cloudstack.py"
 
 %post
 %post_service cloud-config
