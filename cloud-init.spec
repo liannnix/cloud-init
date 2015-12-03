@@ -90,7 +90,7 @@ make test noseopts="-I test_cloudstack.py"
 /lib/udev/rules.d/66-azure-ephemeral.rules
 %_initdir/*
 %_unitdir/*
-%_tmpfilesdir/
+%_tmpfilesdir/*
 %python_sitelibdir/*
 %_libexecdir/%name
 %_bindir/cloud-init*
