@@ -60,11 +60,11 @@ mkdir -p %buildroot%_sharedstatedir/cloud
 rm -r %buildroot%python_sitelibdir/tests
 
 # Remove non-ALTLinux templates
-rm %buildroot%_sysconfdir/cloud/templates/*.debian.*
-rm %buildroot%_sysconfdir/cloud/templates/*.freebsd.*
-rm %buildroot%_sysconfdir/cloud/templates/*.redhat.*
-rm %buildroot%_sysconfdir/cloud/templates/*.suse.*
-rm %buildroot%_sysconfdir/cloud/templates/*.ubuntu.*
+rm -f %buildroot%_sysconfdir/cloud/templates/*.debian.*
+rm -f %buildroot%_sysconfdir/cloud/templates/*.freebsd.*
+rm -f %buildroot%_sysconfdir/cloud/templates/*.redhat.*
+rm -f %buildroot%_sysconfdir/cloud/templates/*.suse.*
+rm -f %buildroot%_sysconfdir/cloud/templates/*.ubuntu.*
 
 %check
 export PATH=/sbin:/usr/sbin:/bin:/usr/bin:$PATH
