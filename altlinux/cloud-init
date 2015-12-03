@@ -29,7 +29,6 @@ WITHOUT_RC_COMPAT=1
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 RETVAL=0
 
-DAEMON
 NAME="cloud-init"
 DAEMON="/usr/bin/$NAME"
 SourceIfNotEmpty /etc/sysconfig/$NAME
