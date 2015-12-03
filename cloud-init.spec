@@ -21,10 +21,14 @@ BuildRequires: python-module-httpretty python-module-serial iproute2 util-linux 
 
 Requires: sudo
 Requires: e2fsprogs
+Requires: cloud-utils-growpart
 Requires: procps
 Requires: iproute net-tools
 Requires: shadow-utils
 Requires: /bin/run-parts
+# add not autoreq'ed
+%py_requires Cheetah
+%py_requires jinja2
 
 %description
 Cloud-init is a set of init scripts for cloud instances.  Cloud instances
