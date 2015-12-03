@@ -35,14 +35,14 @@ SourceIfNotEmpty /etc/sysconfig/$NAME
 
 start()
 {
-	msg_starting $"Starting init $NAME: "
+	msg_starting $"init $NAME: "
 	$DAEMON $CLOUDINITARGS init
 	RETVAL=$?
 	return $RETVAL
 }
 
 stop() {
-	msg_stopping $"Shutting down $NAME: "
+	msg_stopping $"init $NAME: "
 	# No-op
 	RETVAL=1
 	return $RETVAL
