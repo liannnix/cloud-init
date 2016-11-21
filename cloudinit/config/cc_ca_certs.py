@@ -14,6 +14,38 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+CA Certs
+--------
+**Summary:** add ca certificates
+
+This module adds CA certificates to ``/etc/ca-certificates.conf`` and updates
+the ssl cert cache using ``update-ca-certificates``. The default certificates
+can be removed from the system with the configuration option
+``remove-defaults``.
+
+.. note::
+    certificates must be specified using valid yaml. in order to specify a
+    multiline certificate, the yaml multiline list syntax must be used
+
+**Internal name:** ``cc_ca_certs``
+
+**Module frequency:** per instance
+
+**Supported distros:** ubuntu, debian
+
+**Config keys**::
+
+    ca-certs:
+        remove-defaults: <true/false>
+        trusted:
+            - <single line cert>
+            - |
+              -----BEGIN CERTIFICATE-----
+              YOUR-ORGS-TRUSTED-CA-CERT-HERE
+              -----END CERTIFICATE-----
+"""
+
 import os
 
 from cloudinit import util
@@ -50,8 +82,8 @@ def add_ca_certs(certs):
         # We have to strip the content because blank lines in the file
         # causes subsequent entries to be ignored. (LP: #1077020)
         orig = util.load_file(CA_CERT_CONFIG)
-        cur_cont = '\n'.join([l for l in orig.splitlines()
-                              if l != CA_CERT_FILENAME])
+        cur_cont = '\n'.join([line for line in orig.splitlines()
+                              if line != CA_CERT_FILENAME])
         out = "%s\n%s\n" % (cur_cont.rstrip(), CA_CERT_FILENAME)
         util.write_file(CA_CERT_CONFIG, out, omode="wb")
 
