@@ -9,6 +9,15 @@ Url:     http://launchpad.net/cloud-init
 
 Source0: %name-%version.tar
 
+Source1: cloud-init-alt.cfg
+Source3: cloud-init-tmpfiles.conf
+
+Source11: cloud-config
+Source12: cloud-final
+Source13: cloud-init
+Source14: cloud-init-local
+
+
 Patch1: %name-%version-%release.patch
 
 BuildArch: noarch
@@ -46,12 +55,12 @@ ssh keys and to let the user run various scripts.
 %install
 %python_install --init-system=systemd
 
-install -pD -m644 altlinux/cloud-init-alt.cfg %buildroot%_sysconfdir/cloud/cloud.cfg
-install -pD -m644 altlinux/cloud-init-tmpfiles.conf %buildroot%_tmpfilesdir/cloud-init.conf
-install -pD -m755 altlinux/cloud-config %buildroot%_initdir/cloud-config
-install -pD -m755 altlinux/cloud-final %buildroot%_initdir/cloud-final
-install -pD -m755 altlinux/cloud-init %buildroot%_initdir/cloud-init
-install -pD -m755 altlinux/cloud-init-local %buildroot%_initdir/cloud-init-local
+install -pD -m644 %SOURCE1 %buildroot%_sysconfdir/cloud/cloud.cfg
+install -pD -m644 %SOURCE3 %buildroot%_tmpfilesdir/cloud-init.conf
+install -pD -m755 %SOURCE11 %buildroot%_initdir/cloud-config
+install -pD -m755 %SOURCE12 %buildroot%_initdir/cloud-final
+install -pD -m755 %SOURCE13 %buildroot%_initdir/cloud-init
+install -pD -m755 %SOURCE14 %buildroot%_initdir/cloud-init-local
 
 mkdir -p %buildroot%_libexecdir
 mv %buildroot/usr/libexec/%name %buildroot%_libexecdir/
