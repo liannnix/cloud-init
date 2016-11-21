@@ -21,6 +21,8 @@ Source14: cloud-init-local
 Patch1: %name-%version-%release.patch
 
 BuildArch: noarch
+# /proc for tests
+BuildRequires: /proc
 
 BuildRequires: python-devel python-module-distribute python-module-nose python-module-mocker
 BuildRequires: python-module-yaml python-module-cheetah python-module-oauth
@@ -77,9 +79,7 @@ rm -f %buildroot%_sysconfdir/cloud/templates/*.suse.*
 rm -f %buildroot%_sysconfdir/cloud/templates/*.ubuntu.*
 
 %check
-export PATH=/sbin:/usr/sbin:/bin:/usr/bin:$PATH
-# Ignore test_netconfig.py because test_simple_write_freebsd is broken
-make test noseopts="-I test_cloudstack.py"
+make unittest noseopts=" -I test_cloudstack.py -I test_handler_apt_source_v3.py"
 
 %post
 %post_service cloud-config
@@ -101,10 +101,12 @@ make test noseopts="-I test_cloudstack.py"
 %doc               %_sysconfdir/cloud/cloud.cfg.d/README
 %dir               %_sysconfdir/cloud/templates
 %config(noreplace) %_sysconfdir/cloud/templates/*
+%_sysconfdir/NetworkManager/dispatcher.d/hook-network-manager
 /lib/udev/rules.d/66-azure-ephemeral.rules
 %_initdir/*
 %_unitdir/*
 %_tmpfilesdir/*
+/lib/systemd/system-generators/cloud-init-generator
 %python_sitelibdir/*
 %_libexecdir/%name
 %_bindir/cloud-init*
