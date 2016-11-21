@@ -1,6 +1,6 @@
 Name:    cloud-init
-Version: 0.7.6
-Release: alt2.20151202
+Version: 0.7.8
+Release: alt1.git9d826b88
 
 Summary: Cloud instance init scripts
 Group:   System/Configuration/Boot and Init
@@ -15,6 +15,7 @@ BuildArch: noarch
 
 BuildRequires: python-devel python-module-distribute python-module-nose python-module-mocker
 BuildRequires: python-module-yaml python-module-cheetah python-module-oauth
+BuildRequires: systemd-devel
 # For tests
 BuildRequires: python-modules-json python-module-requests python-module-jsonpatch python-module-configobj python-module-mock python-module-oauthlib
 BuildRequires: python-module-httpretty python-module-serial iproute2 util-linux net-tools python-module-jinja2 python-module-contextlib2 python-module-prettytable
@@ -102,6 +103,9 @@ make test noseopts="-I test_cloudstack.py"
 %dir %_sharedstatedir/cloud
 
 %changelog
+* Mon Nov 21 2016 Alexey Shabalin <shaba@altlinux.ru> 0.7.8-alt1.git9d826b88
+- git snapshot 9d826b8855797bd37e477b6da43153c49529afe8
+
 * Wed Dec 02 2015 Alexey Shabalin <shaba@altlinux.ru> 0.7.6-alt2.20151202
 - upstream snapshot
 - add ALTLinux support
