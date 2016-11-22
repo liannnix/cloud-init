@@ -17,8 +17,9 @@ Source12: cloud-final
 Source13: cloud-init
 Source14: cloud-init-local
 
-
 Patch1: %name-%version-%release.patch
+
+%add_findreq_skiplist /lib/systemd/system-generators/cloud-init-generator
 
 BuildArch: noarch
 # /proc for tests
