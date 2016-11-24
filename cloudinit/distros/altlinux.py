@@ -47,6 +47,7 @@ class Distro(distros.Distro):
     network_script_tpl5 = '/etc/net/ifaces/%s/ipv6route'
     resolve_conf_fn = '/etc/net/ifaces/%s/resolv.conf'
     tz_local_fn = '/etc/localtime'
+    init_cmd = ['service']
 
     def __init__(self, name, cfg, paths):
         distros.Distro.__init__(self, name, cfg, paths)
@@ -137,12 +138,6 @@ class Distro(distros.Distro):
             }
             rhel_util.update_sysconfig_file(out_fn, host_cfg)
 
-    def _select_hostname(self, hostname, fqdn):
-        # See: http://bit.ly/TwitgL
-        # Should be fqdn if we can use it
-        if fqdn:
-            return fqdn
-        return hostname
 
     def _read_system_hostname(self):
         if self.uses_systemd():
