@@ -67,7 +67,7 @@ LOG = logging.getLogger(__name__)
 
 frequency = PER_INSTANCE
 
-distros = ['fedora', 'rhel', 'sles']
+distros = ['fedora', 'rhel', 'sles', 'altlinux']
 
 
 def generate_resolv_conf(template_fn, params, target_fname="/etc/resolv.conf"):
