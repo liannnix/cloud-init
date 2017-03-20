@@ -6,22 +6,9 @@
 #
 #    Leaning very heavily on the RHEL and Debian implementation
 #
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 from cloudinit import distros
-
-from cloudinit.distros.parsers.hostname import HostnameConf
-
 from cloudinit import helpers
 from cloudinit import log as logging
 from cloudinit import util
@@ -32,6 +19,11 @@ from cloudinit.settings import PER_INSTANCE
 
 LOG = logging.getLogger(__name__)
 
+def _make_sysconfig_bool(val):
+    if val:
+        return 'yes'
+    else:
+        return 'no'
 
 class Distro(distros.Distro):
     clock_conf_fn = '/etc/sysconfig/clock'
