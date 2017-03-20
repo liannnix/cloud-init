@@ -1,24 +1,12 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2009 Canonical Ltd.
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Distutils magic for ec2-init
+# Author: Soren Hansen <soren@canonical.com>
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Copyright (C) 2009 Canonical Ltd.
-#    Copyright (C) 2012 Yahoo! Inc.
-#
-#    Author: Soren Hansen <soren@canonical.com>
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init.  See LICENSE file for license information.
+
+# Distutils magic for ec2-init
 
 from glob import glob
 
@@ -179,7 +167,8 @@ else:
         (ETC + '/cloud/cloud.cfg.d', glob('config/cloud.cfg.d/*')),
         (ETC + '/cloud/templates', glob('templates/*')),
         (ETC + '/NetworkManager/dispatcher.d/', ['tools/hook-network-manager']),
-        (USR_LIB_EXEC + '/cloud-init', ['tools/uncloud-init',
+        (USR_LIB_EXEC + '/cloud-init', ['tools/ds-identify',
+                                        'tools/uncloud-init',
                                         'tools/write-ssh-key-fingerprints']),
         (USR + '/share/doc/cloud-init', [f for f in glob('doc/*') if is_f(f)]),
         (USR + '/share/doc/cloud-init/examples',
@@ -208,7 +197,7 @@ setuptools.setup(
     url='http://launchpad.net/cloud-init/',
     packages=setuptools.find_packages(exclude=['tests']),
     scripts=['tools/cloud-init-per'],
-    license='GPLv3',
+    license='Dual-licensed under GPLv3 or Apache 2.0',
     data_files=data_files,
     cmdclass=cmdclass,
     entry_points={
@@ -217,3 +206,5 @@ setuptools.setup(
         ],
     }
 )
+
+# vi: ts=4 expandtab

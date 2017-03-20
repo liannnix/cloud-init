@@ -1,22 +1,11 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2014 Yahoo! Inc.
 #
-#    Copyright (C) 2014 Yahoo! Inc.
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import copy
+import httpretty as hp
 import json
 import re
 
@@ -31,8 +20,6 @@ from cloudinit.sources import convert_vendordata
 from cloudinit.sources import DataSourceOpenStack as ds
 from cloudinit.sources.helpers import openstack
 from cloudinit import util
-
-hp = test_helpers.import_httpretty()
 
 BASE_URL = "http://169.254.169.254"
 PUBKEY = u'ssh-rsa AAAAB3NzaC1....sIkJhq8wdX+4I3A4cYbYP ubuntu@server-460\n'
@@ -67,8 +54,6 @@ OSTACK_META = {
 CONTENT_0 = b'This is contents of /etc/foo.cfg\n'
 CONTENT_1 = b'# this is /etc/bar/bar.cfg\n'
 OS_FILES = {
-    'openstack/latest/meta_data.json': json.dumps(OSTACK_META),
-    'openstack/latest/user_data': USER_DATA,
     'openstack/content/0000': CONTENT_0,
     'openstack/content/0001': CONTENT_1,
     'openstack/latest/meta_data.json': json.dumps(OSTACK_META),
@@ -246,7 +231,7 @@ class TestOpenStackDataSource(test_helpers.HttprettyTestCase):
                                        None,
                                        helpers.Paths({}))
         self.assertIsNone(ds_os.version)
-        found = ds_os.get_data(timeout=0.1, retries=0)
+        found = ds_os.get_data()
         self.assertTrue(found)
         self.assertEqual(2, ds_os.version)
         md = dict(ds_os.metadata)
@@ -270,7 +255,7 @@ class TestOpenStackDataSource(test_helpers.HttprettyTestCase):
                                        None,
                                        helpers.Paths({}))
         self.assertIsNone(ds_os.version)
-        found = ds_os.get_data(timeout=0.1, retries=0)
+        found = ds_os.get_data()
         self.assertFalse(found)
         self.assertIsNone(ds_os.version)
 
@@ -289,7 +274,7 @@ class TestOpenStackDataSource(test_helpers.HttprettyTestCase):
             'timeout': 0,
         }
         self.assertIsNone(ds_os.version)
-        found = ds_os.get_data(timeout=0.1, retries=0)
+        found = ds_os.get_data()
         self.assertFalse(found)
         self.assertIsNone(ds_os.version)
 
@@ -312,7 +297,7 @@ class TestOpenStackDataSource(test_helpers.HttprettyTestCase):
             'timeout': 0,
         }
         self.assertIsNone(ds_os.version)
-        found = ds_os.get_data(timeout=0.1, retries=0)
+        found = ds_os.get_data()
         self.assertFalse(found)
         self.assertIsNone(ds_os.version)
 
@@ -346,3 +331,5 @@ class TestVendorDataLoading(test_helpers.TestCase):
     def test_vd_load_dict_ci_list(self):
         data = {'foo': 'bar', 'cloud-init': ['VD_1', 'VD_2']}
         self.assertEqual(self.cvj(data), data['cloud-init'])
+
+# vi: ts=4 expandtab

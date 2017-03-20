@@ -1,20 +1,10 @@
+# Copyright (C) 2014 Vaidas Jablonskis
 #
-#    Copyright (C) 2014 Vaidas Jablonskis
+# Author: Vaidas Jablonskis <jablonskis@gmail.com>
 #
-#    Author: Vaidas Jablonskis <jablonskis@gmail.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
+import httpretty
 import re
 
 from base64 import b64encode, b64decode
@@ -26,7 +16,6 @@ from cloudinit.sources import DataSourceGCE
 
 from .. import helpers as test_helpers
 
-httpretty = test_helpers.import_httpretty()
 
 GCE_META = {
     'instance/id': '123',
@@ -70,6 +59,8 @@ def _set_mock_metadata(gce_meta=None):
         else:
             return (404, headers, '')
 
+    # reset is needed. https://github.com/gabrielfalcao/HTTPretty/issues/316
+    httpretty.reset()
     httpretty.register_uri(httpretty.GET, MD_URL_RE, body=_request_callback)
 
 
@@ -164,3 +155,5 @@ class TestDataSourceGCE(test_helpers.HttprettyTestCase):
         _set_mock_metadata()
         self.ds.get_data()
         self.assertEqual('bar', self.ds.availability_zone)
+
+# vi: ts=4 expandtab

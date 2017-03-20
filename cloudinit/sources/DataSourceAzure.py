@@ -1,25 +1,12 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2013 Canonical Ltd.
 #
-#    Copyright (C) 2013 Canonical Ltd.
+# Author: Scott Moser <scott.moser@canonical.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import base64
 import contextlib
 import crypt
-import fnmatch
 from functools import partial
 import os
 import os.path
@@ -28,7 +15,6 @@ from xml.dom import minidom
 import xml.etree.ElementTree as ET
 
 from cloudinit import log as logging
-from cloudinit.settings import PER_ALWAYS
 from cloudinit import sources
 from cloudinit.sources.helpers.azure import get_metadata_from_fabric
 from cloudinit import util
@@ -38,13 +24,17 @@ LOG = logging.getLogger(__name__)
 DS_NAME = 'Azure'
 DEFAULT_METADATA = {"instance-id": "iid-AZURE-NODE"}
 AGENT_START = ['service', 'walinuxagent', 'start']
+AGENT_START_BUILTIN = "__builtin__"
 BOUNCE_COMMAND = [
     'sh', '-xc',
     "i=$interface; x=0; ifdown $i || x=$?; ifup $i || x=$?; exit $x"
 ]
+# azure systems will always have a resource disk, and 66-azure-ephemeral.rules
+# ensures that it gets linked to this path.
+RESOURCE_DISK_PATH = '/dev/disk/cloud/azure_resource'
 
 BUILTIN_DS_CONFIG = {
-    'agent_command': AGENT_START,
+    'agent_command': AGENT_START_BUILTIN,
     'data_dir': "/var/lib/waagent",
     'set_hostname': True,
     'hostname_bounce': {
@@ -53,7 +43,7 @@ BUILTIN_DS_CONFIG = {
         'command': BOUNCE_COMMAND,
         'hostname_command': 'hostname',
     },
-    'disk_aliases': {'ephemeral0': '/dev/sdb'},
+    'disk_aliases': {'ephemeral0': RESOURCE_DISK_PATH},
     'dhclient_lease_file': '/var/lib/dhcp/dhclient.eth0.leases',
 }
 
@@ -229,7 +219,7 @@ class DataSourceAzureNet(sources.DataSource):
         # the directory to be protected.
         write_files(ddir, files, dirmode=0o700)
 
-        if self.ds_cfg['agent_command'] == '__builtin__':
+        if self.ds_cfg['agent_command'] == AGENT_START_BUILTIN:
             metadata_func = partial(get_metadata_from_fabric,
                                     fallback_lease_file=self.
                                     dhclient_lease_file)
@@ -245,15 +235,6 @@ class DataSourceAzureNet(sources.DataSource):
         self.metadata['instance-id'] = util.read_dmi_data('system-uuid')
         self.metadata.update(fabric_data)
 
-        found_ephemeral = find_fabric_formatted_ephemeral_disk()
-        if found_ephemeral:
-            self.ds_cfg['disk_aliases']['ephemeral0'] = found_ephemeral
-            LOG.debug("using detected ephemeral0 of %s", found_ephemeral)
-
-        cc_modules_override = support_new_ephemeral(self.sys_cfg)
-        if cc_modules_override:
-            self.cfg['cloud_config_modules'] = cc_modules_override
-
         return True
 
     def device_name_to_device(self, name):
@@ -266,94 +247,104 @@ class DataSourceAzureNet(sources.DataSource):
         # quickly (local check only) if self.instance_id is still valid
         return sources.instance_id_matches_system_uuid(self.get_instance_id())
 
+    def activate(self, cfg, is_new_instance):
+        address_ephemeral_resize(is_new_instance=is_new_instance)
+        return
 
-def count_files(mp):
-    return len(fnmatch.filter(os.listdir(mp), '*[!cdrom]*'))
 
+def can_dev_be_reformatted(devpath):
+    # determine if the ephemeral block device path devpath
+    # is newly formatted after a resize.
+    if not os.path.exists(devpath):
+        return False, 'device %s does not exist' % devpath
 
-def find_fabric_formatted_ephemeral_part():
-    """
-    Locate the first fabric formatted ephemeral device.
-    """
-    potential_locations = ['/dev/disk/cloud/azure_resource-part1',
-                           '/dev/disk/azure/resource-part1']
-    device_location = None
-    for potential_location in potential_locations:
-        if os.path.exists(potential_location):
-            device_location = potential_location
+    realpath = os.path.realpath(devpath)
+    LOG.debug('Resolving realpath of %s -> %s', devpath, realpath)
+
+    # it is possible that the block device might exist, but the kernel
+    # have not yet read the partition table and sent events.  we udevadm settle
+    # to hope to resolve that.  Better here would probably be to test and see,
+    # and then settle if we didn't find anything and try again.
+    if util.which("udevadm"):
+        util.subp(["udevadm", "settle"])
+
+    # devpath of /dev/sd[a-z] or /dev/disk/cloud/azure_resource
+    # where partitions are "<devpath>1" or "<devpath>-part1" or "<devpath>p1"
+    part1path = None
+    for suff in ("-part", "p", ""):
+        cand = devpath + suff + "1"
+        if os.path.exists(cand):
+            if os.path.exists(devpath + suff + "2"):
+                msg = ('device %s had more than 1 partition: %s, %s' %
+                       devpath, cand, devpath + suff + "2")
+                return False, msg
+            part1path = cand
             break
-    if device_location is None:
-        return None
-    ntfs_devices = util.find_devs_with("TYPE=ntfs")
-    real_device = os.path.realpath(device_location)
-    if real_device in ntfs_devices:
-        return device_location
-    return None
 
+    if part1path is None:
+        return False, 'device %s was not partitioned' % devpath
 
-def find_fabric_formatted_ephemeral_disk():
-    """
-    Get the ephemeral disk.
-    """
-    part_dev = find_fabric_formatted_ephemeral_part()
-    if part_dev:
-        return part_dev.split('-')[0]
-    return None
+    real_part1path = os.path.realpath(part1path)
+    ntfs_devices = util.find_devs_with("TYPE=ntfs", no_cache=True)
+    LOG.debug('ntfs_devices found = %s', ntfs_devices)
+    if real_part1path not in ntfs_devices:
+        msg = ('partition 1 (%s -> %s) on device %s was not ntfs formatted' %
+               (part1path, real_part1path, devpath))
+        return False, msg
 
+    def count_files(mp):
+        ignored = set(['dataloss_warning_readme.txt'])
+        return len([f for f in os.listdir(mp) if f.lower() not in ignored])
 
-def support_new_ephemeral(cfg):
-    """
-    Windows Azure makes ephemeral devices ephemeral to boot; a ephemeral device
-    may be presented as a fresh device, or not.
-
-    Since the knowledge of when a disk is supposed to be plowed under is
-    specific to Windows Azure, the logic resides here in the datasource. When a
-    new ephemeral device is detected, cloud-init overrides the default
-    frequency for both disk-setup and mounts for the current boot only.
-    """
-    device = find_fabric_formatted_ephemeral_part()
-    if not device:
-        LOG.debug("no default fabric formated ephemeral0.1 found")
-        return None
-    LOG.debug("fabric formated ephemeral0.1 device at %s", device)
-
-    file_count = 0
+    bmsg = ('partition 1 (%s -> %s) on device %s was ntfs formatted' %
+            (part1path, real_part1path, devpath))
     try:
-        file_count = util.mount_cb(device, count_files)
-    except Exception:
-        return None
-    LOG.debug("fabric prepared ephmeral0.1 has %s files on it", file_count)
+        file_count = util.mount_cb(part1path, count_files)
+    except util.MountFailedError as e:
+        return False, bmsg + ' but mount of %s failed: %s' % (part1path, e)
 
-    if file_count >= 1:
-        LOG.debug("fabric prepared ephemeral0.1 will be preserved")
-        return None
+    if file_count != 0:
+        return False, bmsg + ' but had %d files on it.' % file_count
+
+    return True, bmsg + ' and had no important files. Safe for reformatting.'
+
+
+def address_ephemeral_resize(devpath=RESOURCE_DISK_PATH, maxwait=120,
+                             is_new_instance=False):
+    # wait for ephemeral disk to come up
+    naplen = .2
+    missing = wait_for_files([devpath], maxwait=maxwait, naplen=naplen,
+                             log_pre="Azure ephemeral disk: ")
+
+    if missing:
+        LOG.warn("ephemeral device '%s' did not appear after %d seconds.",
+                 devpath, maxwait)
+        return
+
+    result = False
+    msg = None
+    if is_new_instance:
+        result, msg = (True, "First instance boot.")
     else:
-        # if device was already mounted, then we need to unmount it
-        # race conditions could allow for a check-then-unmount
-        # to have a false positive. so just unmount and then check.
-        try:
-            util.subp(['umount', device])
-        except util.ProcessExecutionError as e:
-            if device in util.mounts():
-                LOG.warn("Failed to unmount %s, will not reformat.", device)
-                LOG.debug("Failed umount: %s", e)
-                return None
+        result, msg = can_dev_be_reformatted(devpath)
 
-    LOG.debug("cloud-init will format ephemeral0.1 this boot.")
-    LOG.debug("setting disk_setup and mounts modules 'always' for this boot")
+    LOG.debug("reformattable=%s: %s" % (result, msg))
+    if not result:
+        return
 
-    cc_modules = cfg.get('cloud_config_modules')
-    if not cc_modules:
-        return None
-
-    mod_list = []
-    for mod in cc_modules:
-        if mod in ("disk_setup", "mounts"):
-            mod_list.append([mod, PER_ALWAYS])
-            LOG.debug("set module '%s' to 'always' for this boot", mod)
+    for mod in ['disk_setup', 'mounts']:
+        sempath = '/var/lib/cloud/instance/sem/config_' + mod
+        bmsg = 'Marker "%s" for module "%s"' % (sempath, mod)
+        if os.path.exists(sempath):
+            try:
+                os.unlink(sempath)
+                LOG.debug(bmsg + " removed.")
+            except Exception as e:
+                # python3 throws FileNotFoundError, python2 throws OSError
+                LOG.warn(bmsg + ": remove failed! (%s)" % e)
         else:
-            mod_list.append(mod)
-    return mod_list
+            LOG.debug(bmsg + " did not exist.")
+    return
 
 
 def perform_hostname_bounce(hostname, cfg, prev_hostname):
@@ -405,15 +396,25 @@ def pubkeys_from_crt_files(flist):
     return pubkeys
 
 
-def wait_for_files(flist, maxwait=60, naplen=.5):
+def wait_for_files(flist, maxwait=60, naplen=.5, log_pre=""):
     need = set(flist)
     waited = 0
-    while waited < maxwait:
+    while True:
         need -= set([f for f in need if os.path.exists(f)])
         if len(need) == 0:
+            LOG.debug("%sAll files appeared after %s seconds: %s",
+                      log_pre, waited, flist)
             return []
+        if waited == 0:
+            LOG.info("%sWaiting up to %s seconds for the following files: %s",
+                     log_pre, maxwait, flist)
+        if waited + naplen > maxwait:
+            break
         time.sleep(naplen)
         waited += naplen
+
+    LOG.warn("%sStill missing files after %s seconds: %s",
+             log_pre, maxwait, need)
     return need
 
 
@@ -655,3 +656,5 @@ datasources = [
 # Return a list of data sources that match this set of dependencies
 def get_datasource_list(depends):
     return sources.list_from_depends(depends, datasources)
+
+# vi: ts=4 expandtab

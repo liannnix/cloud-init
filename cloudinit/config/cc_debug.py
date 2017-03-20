@@ -1,36 +1,30 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2013 Yahoo! Inc.
 #
-#    Copyright (C) 2013 Yahoo! Inc.
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 """
+Debug
+-----
 **Summary:** helper to debug cloud-init *internal* datastructures.
 
-**Description:** This module will enable for outputting various internal
-information that cloud-init sources provide to either a file or to the output
-console/log location that this cloud-init has been configured with when
-running.
-
-It can be configured with the following option structure::
-
-    debug:
-       verbose: (defaulting to true)
-       output: (location to write output, defaulting to console + log)
+This module will enable for outputting various internal information that
+cloud-init sources provide to either a file or to the output console/log
+location that this cloud-init has been configured with when running.
 
 .. note::
-
     Log configurations are not output.
+
+**Internal name:** ``cc_debug``
+
+**Module frequency:** per instance
+
+**Supported distros:** all
+
+**Config keys**::
+
+    debug:
+       verbose: true/false (defaulting to true)
+       output: (location to write output, defaulting to console + log)
 """
 
 import copy
@@ -107,3 +101,5 @@ def handle(name, cfg, cloud, log, args):
         util.write_file(out_file, "".join(content_to_file), 0o644, "w")
     else:
         util.multi_log("".join(content_to_file), console=True, stderr=False)
+
+# vi: ts=4 expandtab

@@ -1,18 +1,38 @@
-# vi: ts=4 expandtab
+# Author: Mike Milner <mike.milner@canonical.com>
 #
-#    Author: Mike Milner <mike.milner@canonical.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+CA Certs
+--------
+**Summary:** add ca certificates
+
+This module adds CA certificates to ``/etc/ca-certificates.conf`` and updates
+the ssl cert cache using ``update-ca-certificates``. The default certificates
+can be removed from the system with the configuration option
+``remove-defaults``.
+
+.. note::
+    certificates must be specified using valid yaml. in order to specify a
+    multiline certificate, the yaml multiline list syntax must be used
+
+**Internal name:** ``cc_ca_certs``
+
+**Module frequency:** per instance
+
+**Supported distros:** ubuntu, debian
+
+**Config keys**::
+
+    ca-certs:
+        remove-defaults: <true/false>
+        trusted:
+            - <single line cert>
+            - |
+              -----BEGIN CERTIFICATE-----
+              YOUR-ORGS-TRUSTED-CA-CERT-HERE
+              -----END CERTIFICATE-----
+"""
 
 import os
 
@@ -50,8 +70,8 @@ def add_ca_certs(certs):
         # We have to strip the content because blank lines in the file
         # causes subsequent entries to be ignored. (LP: #1077020)
         orig = util.load_file(CA_CERT_CONFIG)
-        cur_cont = '\n'.join([l for l in orig.splitlines()
-                              if l != CA_CERT_FILENAME])
+        cur_cont = '\n'.join([line for line in orig.splitlines()
+                              if line != CA_CERT_FILENAME])
         out = "%s\n%s\n" % (cur_cont.rstrip(), CA_CERT_FILENAME)
         util.write_file(CA_CERT_CONFIG, out, omode="wb")
 
@@ -102,3 +122,5 @@ def handle(name, cfg, _cloud, log, _args):
     # Update the system with the new cert configuration.
     log.debug("Updating certificates")
     update_ca_certs()
+
+# vi: ts=4 expandtab

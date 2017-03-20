@@ -1,43 +1,37 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2014 Canonical Ltd.
 #
-#    Copyright (C) 2014 Canonical Ltd.
+# Author: Scott Moser <scott.moser@canonical.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 """
+Ubuntu Init Switch
+------------------
 **Summary:** reboot system into another init.
 
-**Description:** This module provides a way for the user to boot with systemd
-even if the image is set to boot with upstart.  It should be run as one of the
-first ``cloud_init_modules``, and will switch the init system and then issue a
-reboot. The next boot will come up in the target init system and no action will
-be taken.
+This module provides a way for the user to boot with systemd even if the image
+is set to boot with upstart. It should be run as one of the first
+``cloud_init_modules``, and will switch the init system and then issue a
+reboot. The next boot will come up in the target init system and no action
+will be taken. This should be inert on non-ubuntu systems, and also
+exit quickly.
 
-This should be inert on non-ubuntu systems, and also exit quickly.
+.. note::
+    best effort is made, but it's possible this system will break, and probably
+    won't interact well with any other mechanism you've used to switch the init
+    system.
 
-It can be configured with the following option structure::
+**Internal name:** ``cc_ubuntu_init_switch``
+
+**Module frequency:** once per instance
+
+**Supported distros:** ubuntu
+
+**Config keys**::
 
     init_switch:
       target: systemd (can be 'systemd' or 'upstart')
       reboot: true (reboot if a change was made, or false to not reboot)
-
-.. note::
-
-    Best effort is made, but it's possible
-    this system will break, and probably won't interact well with any other
-    mechanism you've used to switch the init system.
 """
 
 from cloudinit.distros import ubuntu
@@ -162,3 +156,5 @@ def _fire_reboot(log, wait_attempts=6, initial_sleep=1, backoff=2):
     elapsed = time.time() - start
     raise RuntimeError(("Reboot did not happen"
                         " after %s seconds!") % (int(elapsed)))
+
+# vi: ts=4 expandtab

@@ -1,22 +1,67 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2011 Canonical Ltd.
+# Copyright (C) 2013 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2011 Canonical Ltd.
-#    Copyright (C) 2013 Hewlett-Packard Development Company, L.P.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Growpart
+--------
+**Summary:** grow partitions
+
+Growpart resizes partitions to fill the available disk space.
+This is useful for cloud instances with a larger amount of disk space available
+than the pristine image uses, as it allows the instance to automatically make
+use of the extra space.
+
+The devices run growpart on are specified as a list under the ``devices`` key.
+Each entry in the devices list can be either the path to the device's
+mountpoint in the filesystem or a path to the block device in ``/dev``.
+
+The utility to use for resizing can be selected using the ``mode`` config key.
+If ``mode`` key is set to ``auto``, then any available utility (either
+``growpart`` or ``gpart``) will be used. If neither utility is available, no
+error will be raised. If ``mode`` is set to ``growpart``, then the ``growpart``
+utility will be used. If this utility is not available on the system, this will
+result in an error. If ``mode`` is set to ``off`` or ``false``, then
+``cc_growpart`` will take no action.
+
+There is some functionality overlap between this module and the ``growroot``
+functionality of ``cloud-initramfs-tools``. However, there are some situations
+where one tool is able to function and the other is not. The default
+configuration for both should work for most cloud instances. To explicitly
+prevent ``cloud-initramfs-tools`` from running ``growroot``, the file
+``/etc/growroot-disabled`` can be created. By default, both ``growroot`` and
+``cc_growpart`` will check for the existance of this file and will not run if
+it is present. However, this file can be ignored for ``cc_growpart`` by setting
+``ignore_growroot_disabled`` to ``true``. For more information on
+``cloud-initramfs-tools`` see: https://launchpad.net/cloud-initramfs-tools
+
+Growpart is enabled by default on the root partition. The default config for
+growpart is::
+
+    growpart:
+        mode: auto
+        devices: ["/"]
+        ignore_growroot_disabled: false
+
+**Internal name:** ``cc_growpart``
+
+**Module frequency:** per always
+
+**Supported distros:** all
+
+**Config keys**::
+
+    growpart:
+        mode: <auto/growpart/off/false>
+        devices:
+            - "/"
+            - "/dev/vdb1"
+        ignore_growroot_disabled: <true/false>
+"""
 
 import os
 import os.path
@@ -297,4 +342,7 @@ def handle(_name, cfg, _cloud, log, _args):
         else:
             log.debug("'%s' %s: %s" % (entry, action, msg))
 
+
 RESIZERS = (('growpart', ResizeGrowPart), ('gpart', ResizeGpart))
+
+# vi: ts=4 expandtab

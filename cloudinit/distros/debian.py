@@ -1,32 +1,18 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2012 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Copyright (C) 2012 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
-#    Copyright (C) 2012 Yahoo! Inc.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import os
 
 from cloudinit import distros
 from cloudinit import helpers
 from cloudinit import log as logging
-from cloudinit.net import eni
-from cloudinit.net.network_state import parse_net_config_data
 from cloudinit import util
 
 from cloudinit.distros.parsers.hostname import HostnameConf
@@ -50,11 +36,18 @@ ENI_HEADER = """# This file is generated from information provided by
 # network: {config: disabled}
 """
 
+NETWORK_CONF_FN = "/etc/network/interfaces.d/50-cloud-init.cfg"
+
 
 class Distro(distros.Distro):
     hostname_conf_fn = "/etc/hostname"
     locale_conf_fn = "/etc/default/locale"
-    network_conf_fn = "/etc/network/interfaces.d/50-cloud-init.cfg"
+    renderer_configs = {
+        'eni': {
+            'eni_path': NETWORK_CONF_FN,
+            'eni_header': ENI_HEADER,
+        }
+    }
 
     def __init__(self, name, cfg, paths):
         distros.Distro.__init__(self, name, cfg, paths)
@@ -63,12 +56,6 @@ class Distro(distros.Distro):
         # should only happen say once per instance...)
         self._runner = helpers.Runners(paths)
         self.osfamily = 'debian'
-        self._net_renderer = eni.Renderer({
-            'eni_path': self.network_conf_fn,
-            'eni_header': ENI_HEADER,
-            'links_path_prefix': None,
-            'netrules_path': None,
-        })
 
     def apply_locale(self, locale, out_fn=None):
         if not out_fn:
@@ -88,14 +75,12 @@ class Distro(distros.Distro):
         self.package_command('install', pkgs=pkglist)
 
     def _write_network(self, settings):
-        util.write_file(self.network_conf_fn, settings)
+        util.write_file(NETWORK_CONF_FN, settings)
         return ['all']
 
     def _write_network_config(self, netconfig):
-        ns = parse_net_config_data(netconfig)
-        self._net_renderer.render_network_state("/", ns)
         _maybe_remove_legacy_eth0()
-        return []
+        return self._supported_write_network_config(netconfig)
 
     def _bring_up_interfaces(self, device_names):
         use_all = False
@@ -234,3 +219,5 @@ def _maybe_remove_legacy_eth0(path="/etc/network/interfaces.d/eth0.cfg"):
         msg = bmsg + " %s exists, but could not be read." % path
 
     LOG.warn(msg)
+
+# vi: ts=4 expandtab

@@ -1,20 +1,34 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Copyright (C) 2012 Yahoo! Inc.
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Yum Add Repo
+------------
+**Summary:** add yum repository configuration to the system
+
+Add yum repository configuration to ``/etc/yum.repos.d``. Configuration files
+are named based on the dictionary key under the ``yum_repos`` they are
+specified with. If a config file already exists with the same name as a config
+entry, the config entry will be skipped.
+
+**Internal name:** ``cc_yum_add_repo``
+
+**Module frequency:** per always
+
+**Supported distros:** fedora, rhel
+
+**Config keys**::
+
+    yum_repos:
+        <repo-name>:
+            baseurl: <repo url>
+            name: <repo name>
+            enabled: <true/false>
+            # any repository configuration options (see man yum.conf)
+"""
 
 import os
 
@@ -107,3 +121,5 @@ def handle(name, cfg, _cloud, log, _args):
         repo_blob = _format_repository_config(c_repo_id,
                                               repo_configs.get(c_repo_id))
         util.write_file(path, repo_blob)
+
+# vi: ts=4 expandtab

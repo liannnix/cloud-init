@@ -1,22 +1,44 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2011 Canonical Ltd.
+# Copyright (C) 2012, 2013 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2011 Canonical Ltd.
-#    Copyright (C) 2012, 2013 Hewlett-Packard Development Company, L.P.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Phone Home
+----------
+**Summary:** post data to url
+
+This module can be used to post data to a remote host after boot is complete.
+If the post url contains the string ``$INSTANCE_ID`` it will be replaced with
+the id of the current instance. Either all data can be posted or a list of
+keys to post. Available keys are:
+
+    - ``pub_key_dsa``
+    - ``pub_key_rsa``
+    - ``pub_key_ecdsa``
+    - ``instance_id``
+    - ``hostname``
+    - ``fdqn``
+
+**Internal name:** ``cc_phone_home``
+
+**Module frequency:** per instance
+
+**Supported distros:** all
+
+**Config keys**::
+
+    phone_home:
+        url: http://example.com/$INSTANCE_ID/
+        post:
+            - pub_key_dsa
+            - instance_id
+            - fqdn
+        tries: 10
+"""
 
 from cloudinit import templater
 from cloudinit import util
@@ -120,3 +142,5 @@ def handle(name, cfg, cloud, log, args):
     except Exception:
         util.logexc(log, "Failed to post phone home data to %s in %s tries",
                     url, tries)
+
+# vi: ts=4 expandtab

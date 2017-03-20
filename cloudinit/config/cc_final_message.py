@@ -1,22 +1,35 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2011 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2011 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Final Message
+-------------
+**Summary:** output final message when cloud-init has finished
+
+This module configures the final message that cloud-init writes. The message is
+specified as a jinja template with the following variables set:
+
+    - ``version``: cloud-init version
+    - ``timestamp``: time at cloud-init finish
+    - ``datasource``: cloud-init data source
+    - ``uptime``: system uptime
+
+**Internal name:** ``cc_final_message``
+
+**Module frequency:** per always
+
+**Supported distros:** all
+
+**Config keys**::
+
+    final_message: <message>
+
+"""
 
 from cloudinit import templater
 from cloudinit import util
@@ -71,3 +84,5 @@ def handle(_name, cfg, cloud, log, args):
 
     if cloud.datasource.is_disconnected:
         log.warn("Used fallback datasource")
+
+# vi: ts=4 expandtab

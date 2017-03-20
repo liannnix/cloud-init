@@ -1,28 +1,36 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2009-2010 Canonical Ltd.
+# Copyright (C) 2012, 2013 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2009-2010 Canonical Ltd.
-#    Copyright (C) 2012, 2013 Hewlett-Packard Development Company, L.P.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
-# Ensure this is aliased to a name not 'distros'
-# since the module attribute 'distros'
-# is a list of distros that are supported, not a sub-module
-from cloudinit import distros as ds
+"""
+SSH Import Id
+-------------
+**Summary:** import ssh id
 
+This module imports ssh keys from either a public keyserver, usually launchpad
+or github using ``ssh-import-id``. Keys are referenced by the username they are
+associated with on the keyserver. The keyserver can be specified by prepending
+either ``lp:`` for launchpad or ``gh:`` for github to the username.
+
+**Internal name:** ``cc_ssh_import_id``
+
+**Module frequency:** per instance
+
+**Supported distros:** ubuntu, debian
+
+**Config keys**::
+
+    ssh_import_id:
+        - user
+        - gh:user
+        - lp:user
+"""
+
+from cloudinit.distros import ug_util
 from cloudinit import util
 import pwd
 
@@ -43,7 +51,7 @@ def handle(_name, cfg, cloud, log, args):
         return
 
     # import for cloudinit created users
-    (users, _groups) = ds.normalize_users_groups(cfg, cloud.distro)
+    (users, _groups) = ug_util.normalize_users_groups(cfg, cloud.distro)
     elist = []
     for (user, user_cfg) in users.items():
         import_ids = []
@@ -97,3 +105,5 @@ def import_ssh_ids(ids, user, log):
     except util.ProcessExecutionError as exc:
         util.logexc(log, "Failed to run command to import %s ssh ids", user)
         raise exc
+
+# vi: ts=4 expandtab

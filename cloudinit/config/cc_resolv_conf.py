@@ -1,53 +1,50 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2013 Craig Tracey
+# Copyright (C) 2013 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2013 Craig Tracey
-#    Copyright (C) 2013 Hewlett-Packard Development Company, L.P.
+# Author: Craig Tracey <craigtracey@gmail.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Craig Tracey <craigtracey@gmail.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
-#    Note:
-#    This module is intended to manage resolv.conf in environments where
-#    early configuration of resolv.conf is necessary for further
-#    bootstrapping and/or where configuration management such as puppet or
-#    chef own dns configuration. As Debian/Ubuntu will, by default, utilize
-#    resovlconf, and similarly RedHat will use sysconfig, this module is
-#    likely to be of little use unless those are configured correctly.
-#
-#    For RedHat with sysconfig, be sure to set PEERDNS=no for all DHCP
-#    enabled NICs.  And, in Ubuntu/Debian it is recommended that DNS
-#    be configured via the standard /etc/network/interfaces configuration
-#    file.
-#
-#
-#    Usage Example:
-#
-#    #cloud-config
-#    manage_resolv_conf: true
-#
-#    resolv_conf:
-#      nameservers: ['8.8.4.4', '8.8.8.8']
-#      searchdomains:
-#        - foo.example.com
-#        - bar.example.com
-#      domain: example.com
-#      options:
-#        rotate: true
-#        timeout: 1
-#
+"""
+Resolv Conf
+-----------
+**Summary:** configure resolv.conf
 
+This module is intended to manage resolv.conf in environments where early
+configuration of resolv.conf is necessary for further bootstrapping and/or
+where configuration management such as puppet or chef own dns configuration.
+As Debian/Ubuntu will, by default, utilize resovlconf, and similarly RedHat
+will use sysconfig, this module is likely to be of little use unless those
+are configured correctly.
+
+.. note::
+    For RedHat with sysconfig, be sure to set PEERDNS=no for all DHCP
+    enabled NICs.
+
+.. note::
+    And, in Ubuntu/Debian it is recommended that DNS be configured via the
+    standard /etc/network/interfaces configuration file.
+
+**Internal name:** ``cc_resolv_conf``
+
+**Module frequency:** per instance
+
+**Supported distros:** fedora, rhel, sles
+
+**Config keys**::
+
+    manage_resolv_conf: <true/false>
+    resolv_conf:
+        nameservers: ['8.8.4.4', '8.8.8.8']
+        searchdomains:
+            - foo.example.com
+            - bar.example.com
+        domain: example.com
+        options:
+            rotate: <true/false>
+            timeout: 1
+"""
 
 from cloudinit import log as logging
 from cloudinit.settings import PER_INSTANCE
@@ -114,3 +111,5 @@ def handle(name, cfg, cloud, log, _args):
 
     generate_resolv_conf(template_fn=template_fn, params=cfg["resolv_conf"])
     return
+
+# vi: ts=4 expandtab

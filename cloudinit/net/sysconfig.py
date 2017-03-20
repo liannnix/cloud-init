@@ -1,16 +1,4 @@
-# vi: ts=4 expandtab
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import os
 import re
@@ -99,7 +87,8 @@ class Route(ConfigMap):
     def __init__(self, route_name, base_sysconf_dir):
         super(Route, self).__init__()
         self.last_idx = 1
-        self.has_set_default = False
+        self.has_set_default_ipv4 = False
+        self.has_set_default_ipv6 = False
         self._route_name = route_name
         self._base_sysconf_dir = base_sysconf_dir
 
@@ -107,7 +96,8 @@ class Route(ConfigMap):
         r = Route(self._route_name, self._base_sysconf_dir)
         r._conf = self._conf.copy()
         r.last_idx = self.last_idx
-        r.has_set_default = self.has_set_default
+        r.has_set_default_ipv4 = self.has_set_default_ipv4
+        r.has_set_default_ipv6 = self.has_set_default_ipv6
         return r
 
     @property
@@ -131,10 +121,10 @@ class NetInterface(ConfigMap):
         super(NetInterface, self).__init__()
         self.children = []
         self.routes = Route(iface_name, base_sysconf_dir)
-        self._kind = kind
+        self.kind = kind
+
         self._iface_name = iface_name
         self._conf['DEVICE'] = iface_name
-        self._conf['TYPE'] = self.iface_types[kind]
         self._base_sysconf_dir = base_sysconf_dir
 
     @property
@@ -152,6 +142,8 @@ class NetInterface(ConfigMap):
 
     @kind.setter
     def kind(self, kind):
+        if kind not in self.iface_types:
+            raise ValueError(kind)
         self._kind = kind
         self._conf['TYPE'] = self.iface_types[kind]
 
@@ -185,7 +177,7 @@ class Renderer(renderer.Renderer):
         ('BOOTPROTO', 'none'),
     ])
 
-    # If these keys exist, then there values will be used to form
+    # If these keys exist, then their values will be used to form
     # a BONDING_OPTS grouping; otherwise no grouping will be set.
     bond_tpl_opts = tuple([
         ('bond_mode', "mode=%s"),
@@ -211,6 +203,7 @@ class Renderer(renderer.Renderer):
     def _render_iface_shared(cls, iface, iface_cfg):
         for k, v in cls.iface_defaults:
             iface_cfg[k] = v
+
         for (old_key, new_key) in [('mac_address', 'HWADDR'), ('mtu', 'MTU')]:
             old_value = iface.get(old_key)
             if old_value is not None:
@@ -239,10 +232,20 @@ class Renderer(renderer.Renderer):
         if 'netmask' in subnet:
             iface_cfg['NETMASK'] = subnet['netmask']
         for route in subnet.get('routes', []):
+            if subnet.get('ipv6'):
+                gw_cfg = 'IPV6_DEFAULTGW'
+            else:
+                gw_cfg = 'GATEWAY'
+
             if _is_default_route(route):
-                if route_cfg.has_set_default:
-                    raise ValueError("Duplicate declaration of default"
-                                     " route found for interface '%s'"
+                if (
+                        (subnet.get('ipv4') and
+                         route_cfg.has_set_default_ipv4) or
+                        (subnet.get('ipv6') and
+                         route_cfg.has_set_default_ipv6)
+                ):
+                    raise ValueError("Duplicate declaration of default "
+                                     "route found for interface '%s'"
                                      % (iface_cfg.name))
                 # NOTE(harlowja): ipv6 and ipv4 default gateways
                 gw_key = 'GATEWAY0'
@@ -254,7 +257,7 @@ class Renderer(renderer.Renderer):
                 # also provided the default route?
                 iface_cfg['DEFROUTE'] = True
                 if 'gateway' in route:
-                    iface_cfg['GATEWAY'] = route['gateway']
+                    iface_cfg[gw_cfg] = route['gateway']
                 route_cfg.has_set_default = True
             else:
                 gw_key = 'GATEWAY%s' % route_cfg.last_idx
@@ -294,12 +297,12 @@ class Renderer(renderer.Renderer):
             if len(iface_subnets) == 1:
                 cls._render_subnet(iface_cfg, route_cfg, iface_subnets[0])
             elif len(iface_subnets) > 1:
-                for i, iface_subnet in enumerate(iface_subnets,
-                                                 start=len(iface.children)):
+                for i, isubnet in enumerate(iface_subnets,
+                                            start=len(iface_cfg.children)):
                     iface_sub_cfg = iface_cfg.copy()
                     iface_sub_cfg.name = "%s:%s" % (iface_name, i)
-                    iface.children.append(iface_sub_cfg)
-                    cls._render_subnet(iface_sub_cfg, route_cfg, iface_subnet)
+                    iface_cfg.children.append(iface_sub_cfg)
+                    cls._render_subnet(iface_sub_cfg, route_cfg, isubnet)
 
     @classmethod
     def _render_bond_interfaces(cls, network_state, iface_contents):
@@ -365,6 +368,8 @@ class Renderer(renderer.Renderer):
         '''Given state, return /etc/sysconfig files + contents'''
         iface_contents = {}
         for iface in network_state.iter_interfaces():
+            if iface['type'] == "loopback":
+                continue
             iface_name = iface['name']
             iface_cfg = NetInterface(iface_name, base_sysconf_dir)
             cls._render_iface_shared(iface, iface_cfg)
@@ -384,17 +389,36 @@ class Renderer(renderer.Renderer):
                 contents[iface_cfg.routes.path] = iface_cfg.routes.to_string()
         return contents
 
-    def render_network_state(self, target, network_state):
-        base_sysconf_dir = os.path.join(target, self.sysconf_dir)
+    def render_network_state(self, network_state, target=None):
+        base_sysconf_dir = util.target_path(target, self.sysconf_dir)
         for path, data in self._render_sysconfig(base_sysconf_dir,
                                                  network_state).items():
             util.write_file(path, data)
         if self.dns_path:
-            dns_path = os.path.join(target, self.dns_path)
+            dns_path = util.target_path(target, self.dns_path)
             resolv_content = self._render_dns(network_state,
                                               existing_dns_path=dns_path)
             util.write_file(dns_path, resolv_content)
         if self.netrules_path:
             netrules_content = self._render_persistent_net(network_state)
-            netrules_path = os.path.join(target, self.netrules_path)
+            netrules_path = util.target_path(target, self.netrules_path)
             util.write_file(netrules_path, netrules_content)
+
+
+def available(target=None):
+    expected = ['ifup', 'ifdown']
+    search = ['/sbin', '/usr/sbin']
+    for p in expected:
+        if not util.which(p, search=search, target=target):
+            return False
+
+    expected_paths = [
+        'etc/sysconfig/network-scripts/network-functions',
+        'etc/sysconfig/network-scripts/ifdown-eth']
+    for p in expected_paths:
+        if not os.path.isfile(util.target_path(target, p)):
+            return False
+    return True
+
+
+# vi: ts=4 expandtab

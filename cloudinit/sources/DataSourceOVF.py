@@ -1,24 +1,12 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2011 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Copyright (C) 2011 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
-#    Copyright (C) 2012 Yahoo! Inc.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Hafliger <juerg.haefliger@hp.com>
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Hafliger <juerg.haefliger@hp.com>
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 from xml.dom import minidom
 
@@ -60,6 +48,7 @@ class DataSourceOVF(sources.DataSource):
         self.environment = None
         self.cfg = {}
         self.supported_seed_starts = ("/", "file://")
+        self.vmware_customization_supported = True
 
     def __str__(self):
         root = sources.DataSource.__str__(self)
@@ -90,7 +79,10 @@ class DataSourceOVF(sources.DataSource):
             found.append(seed)
         elif system_type and 'vmware' in system_type.lower():
             LOG.debug("VMware Virtualization Platform found")
-            if not util.get_cfg_option_bool(
+            if not self.vmware_customization_supported:
+                LOG.debug("Skipping the check for "
+                          "VMware Customization support")
+            elif not util.get_cfg_option_bool(
                     self.sys_cfg, "disable_vmware_customization", True):
                 deployPkgPluginPath = search_file("/usr/lib/vmware-tools",
                                                   "libdeployPkgPlugin.so")
@@ -102,17 +94,18 @@ class DataSourceOVF(sources.DataSource):
                     # copies the customization specification file to
                     # /var/run/vmware-imc directory. cloud-init code needs
                     # to search for the file in that directory.
+                    max_wait = get_max_wait_from_cfg(self.ds_cfg)
                     vmwareImcConfigFilePath = util.log_time(
                         logfunc=LOG.debug,
                         msg="waiting for configuration file",
                         func=wait_for_imc_cfg_file,
-                        args=("/var/run/vmware-imc", "cust.cfg"))
+                        args=("/var/run/vmware-imc", "cust.cfg", max_wait))
 
                 if vmwareImcConfigFilePath:
-                    LOG.debug("Found VMware DeployPkg Config File at %s" %
+                    LOG.debug("Found VMware Customization Config File at %s",
                               vmwareImcConfigFilePath)
                 else:
-                    LOG.debug("Did not find VMware DeployPkg Config File Path")
+                    LOG.debug("Did not find VMware Customization Config File")
             else:
                 LOG.debug("Customization for VMware platform is disabled.")
 
@@ -218,6 +211,29 @@ class DataSourceOVFNet(DataSourceOVF):
         DataSourceOVF.__init__(self, sys_cfg, distro, paths)
         self.seed_dir = os.path.join(paths.seed_dir, 'ovf-net')
         self.supported_seed_starts = ("http://", "https://", "ftp://")
+        self.vmware_customization_supported = False
+
+
+def get_max_wait_from_cfg(cfg):
+    default_max_wait = 90
+    max_wait_cfg_option = 'vmware_cust_file_max_wait'
+    max_wait = default_max_wait
+
+    if not cfg:
+        return max_wait
+
+    try:
+        max_wait = int(cfg.get(max_wait_cfg_option, default_max_wait))
+    except ValueError:
+        LOG.warn("Failed to get '%s', using %s",
+                 max_wait_cfg_option, default_max_wait)
+
+    if max_wait <= 0:
+        LOG.warn("Invalid value '%s' for '%s', using '%s' instead",
+                 max_wait, max_wait_cfg_option, default_max_wait)
+        max_wait = default_max_wait
+
+    return max_wait
 
 
 def wait_for_imc_cfg_file(dirpath, filename, maxwait=180, naplen=5):
@@ -227,6 +243,7 @@ def wait_for_imc_cfg_file(dirpath, filename, maxwait=180, naplen=5):
         fileFullPath = search_file(dirpath, filename)
         if fileFullPath:
             return fileFullPath
+        LOG.debug("Waiting for VMware Customization Config File")
         time.sleep(naplen)
         waited += naplen
     return None
@@ -427,3 +444,5 @@ datasources = (
 # Return a list of data sources that match this set of dependencies
 def get_datasource_list(depends):
     return sources.list_from_depends(depends, datasources)
+
+# vi: ts=4 expandtab

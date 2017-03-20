@@ -1,13 +1,15 @@
+# This file is part of cloud-init. See LICENSE file for license information.
+
 import json
 import os
 import stat
 
 from cloudinit import atomic_helper
 
-from . import helpers
+from .helpers import CiTestCase
 
 
-class TestAtomicHelper(helpers.TempDirTestCase):
+class TestAtomicHelper(CiTestCase):
     def test_basic_usage(self):
         """write_file takes bytes if no omode."""
         path = self.tmp_path("test_basic_usage")
@@ -52,3 +54,5 @@ class TestAtomicHelper(helpers.TempDirTestCase):
     def check_perms(self, path, perms):
         file_stat = os.stat(path)
         self.assertEqual(perms, stat.S_IMODE(file_stat.st_mode))
+
+# vi: ts=4 expandtab

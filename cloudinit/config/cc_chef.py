@@ -1,27 +1,17 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Author: Avishai Ish-Shalom <avishai@fewbytes.com>
+# Author: Mike Moulton <mike@meltmedia.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Avishai Ish-Shalom <avishai@fewbytes.com>
-#    Author: Mike Moulton <mike@meltmedia.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 """
+Chef
+----
 **Summary:** module that configures, starts and installs chef.
 
-**Description:** This module enables chef to be installed (from packages or
+This module enables chef to be installed (from packages or
 from gems, or from omnibus). Before this occurs chef configurations are
 written to disk (validation.pem, client.pem, firstboot.json, client.rb),
 and needed chef folders/directories are created (/etc/chef and /var/log/chef
@@ -33,7 +23,13 @@ chef will have forked into its own process) then a post run function can
 run that can do finishing activities (such as removing the validation pem
 file).
 
-It can be configured with the following option structure::
+**Internal name:** ``cc_chef``
+
+**Module frequency:** per always
+
+**Supported distros:** all
+
+**Config keys**::
 
     chef:
        directories: (defaulting to /etc/chef, /var/log/chef, /var/lib/chef,
@@ -306,7 +302,7 @@ def install_chef(cloud, chef_cfg, log):
         retries = max(0, util.get_cfg_option_int(chef_cfg,
                                                  "omnibus_url_retries",
                                                  default=OMNIBUS_URL_RETRIES))
-        content = url_helper.readurl(url=url, retries=retries)
+        content = url_helper.readurl(url=url, retries=retries).contents
         with util.tempdir() as tmpd:
             # Use tmpdir over tmpfile to avoid 'text file busy' on execute
             tmpf = "%s/chef-omnibus-install" % tmpd
@@ -340,3 +336,5 @@ def install_chef_from_gems(ruby_version, chef_version, distro):
         util.subp(['/usr/bin/gem', 'install', 'chef',
                    '--no-ri', '--no-rdoc', '--bindir',
                    '/usr/bin', '-q'], capture=False)
+
+# vi: ts=4 expandtab

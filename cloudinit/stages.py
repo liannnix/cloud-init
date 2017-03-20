@@ -1,24 +1,8 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2012 Canonical Ltd.
+# Copyright (C) 2012, 2013 Hewlett-Packard Development Company, L.P.
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Copyright (C) 2012 Canonical Ltd.
-#    Copyright (C) 2012, 2013 Hewlett-Packard Development Company, L.P.
-#    Copyright (C) 2012 Yahoo! Inc.
-#
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import copy
 import os
@@ -27,7 +11,8 @@ import sys
 import six
 from six.moves import cPickle as pickle
 
-from cloudinit.settings import (PER_INSTANCE, FREQUENCIES, CLOUD_CONFIG)
+from cloudinit.settings import (
+    FREQUENCIES, CLOUD_CONFIG, PER_INSTANCE, RUN_CLOUD_CONFIG)
 
 from cloudinit import handlers
 
@@ -204,6 +189,12 @@ class Init(object):
     def _write_to_cache(self):
         if self.datasource is NULL_DATA_SOURCE:
             return False
+        if util.get_cfg_option_bool(self.cfg, 'manual_cache_clean', False):
+            # The empty file in instance/ dir indicates manual cleaning,
+            # and can be read by ds-identify.
+            util.write_file(
+                self.paths.get_ipath_cur("manual_clean_marker"),
+                omode="w", content="")
         return _pkl_store(self.datasource, self.paths.get_ipath_cur("obj_pkl"))
 
     def _get_datasources(self):
@@ -370,6 +361,13 @@ class Init(object):
     def update(self):
         self._store_userdata()
         self._store_vendordata()
+
+    def activate_datasource(self):
+        if self.datasource is None:
+            raise RuntimeError("Datasource is None, cannot activate.")
+        self.datasource.activate(cfg=self.cfg,
+                                 is_new_instance=self.is_new_instance())
+        self._write_to_cache()
 
     def _store_userdata(self):
         raw_ud = self.datasource.get_userdata_raw()
@@ -648,9 +646,13 @@ class Init(object):
                  src, bring_up, netcfg)
         try:
             return self.distro.apply_network_config(netcfg, bring_up=bring_up)
+        except net.RendererNotFoundError as e:
+            LOG.error("Unable to render networking. Network config is "
+                      "likely broken: %s", e)
+            return
         except NotImplementedError:
             LOG.warn("distro '%s' does not implement apply_network_config. "
-                     "networking may not be configured properly." %
+                     "networking may not be configured properly.",
                      self.distro)
             return
 
@@ -837,24 +839,22 @@ class Modules(object):
         return self._run_modules(mostly_mods)
 
 
+def read_runtime_config():
+    return util.read_conf(RUN_CLOUD_CONFIG)
+
+
 def fetch_base_config():
-    base_cfgs = []
-    default_cfg = util.get_builtin_cfg()
-
-    # Anything in your conf.d location??
-    # or the 'default' cloud.cfg location???
-    base_cfgs.append(util.read_conf_with_confd(CLOUD_CONFIG))
-
-    # Kernel/cmdline parameters override system config
-    kern_contents = util.read_cc_from_cmdline()
-    if kern_contents:
-        base_cfgs.append(util.load_yaml(kern_contents, default={}))
-
-    # And finally the default gets to play
-    if default_cfg:
-        base_cfgs.append(default_cfg)
-
-    return util.mergemanydict(base_cfgs)
+    return util.mergemanydict(
+        [
+            # builtin config
+            util.get_builtin_cfg(),
+            # Anything in your conf.d or 'default' cloud.cfg location.
+            util.read_conf_with_confd(CLOUD_CONFIG),
+            # runtime config
+            read_runtime_config(),
+            # Kernel/cmdline parameters override system config
+            util.read_conf_from_cmdline(),
+        ], reverse=True)
 
 
 def _pkl_store(obj, fname):
@@ -888,3 +888,5 @@ def _pkl_load(fname):
     except Exception:
         util.logexc(LOG, "Failed loading pickled blob from %s", fname)
         return None
+
+# vi: ts=4 expandtab

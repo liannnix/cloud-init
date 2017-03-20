@@ -1,22 +1,44 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2009-2010 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2009-2010 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Grub Dpkg
+---------
+**Summary:** configure grub debconf installation device
+
+Configure which device is used as the target for grub installation. This module
+should work correctly by default without any user configuration. It can be
+enabled/disabled using the ``enabled`` config key in the ``grub_dpkg`` config
+dict. The global config key ``grub-dpkg`` is an alias for ``grub_dpkg``. If no
+installation device is specified this module will look for the first existing
+device in:
+
+    - ``/dev/sda``
+    - ``/dev/vda``
+    - ``/dev/xvda``
+    - ``/dev/sda1``
+    - ``/dev/vda1``
+    - ``/dev/xvda1``
+
+**Internal name:** ``cc_grub_dpkg``
+
+**Module frequency:** per instance
+
+**Supported distros:** ubuntu, debian
+
+**Config keys**::
+
+    grub_dpkg:
+        enabled: <true/false>
+        grub-pc/install_devices: <devices>
+        grub-pc/install_devices_empty: <devices>
+    grub-dpkg: (alias for grub_dpkg)
+"""
 
 import os
 
@@ -71,3 +93,5 @@ def handle(name, cfg, _cloud, log, _args):
         util.subp(['debconf-set-selections'], dconf_sel)
     except Exception:
         util.logexc(log, "Failed to run debconf-set-selections for grub-dpkg")
+
+# vi: ts=4 expandtab

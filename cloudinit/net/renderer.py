@@ -1,23 +1,13 @@
-#   Copyright (C) 2013-2014 Canonical Ltd.
+# Copyright (C) 2013-2014 Canonical Ltd.
 #
-#   Author: Scott Moser <scott.moser@canonical.com>
-#   Author: Blake Rouse <blake.rouse@canonical.com>
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Blake Rouse <blake.rouse@canonical.com>
 #
-#   Curtin is free software: you can redistribute it and/or modify it under
-#   the terms of the GNU Affero General Public License as published by the
-#   Free Software Foundation, either version 3 of the License, or (at your
-#   option) any later version.
-#
-#   Curtin is distributed in the hope that it will be useful, but WITHOUT ANY
-#   WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-#   FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for
-#   more details.
-#
-#   You should have received a copy of the GNU Affero General Public License
-#   along with Curtin.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import six
 
+from .network_state import parse_net_config_data
 from .udev import generate_udev_rule
 
 
@@ -46,3 +36,9 @@ class Renderer(object):
                 content.write(generate_udev_rule(iface['name'],
                                                  iface['mac_address']))
         return content.getvalue()
+
+    def render_network_config(self, network_config, target=None):
+        return self.render_network_state(
+            network_state=parse_net_config_data(network_config), target=target)
+
+# vi: ts=4 expandtab

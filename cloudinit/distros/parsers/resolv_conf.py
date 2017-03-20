@@ -1,26 +1,16 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Copyright (C) 2012 Yahoo! Inc.
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 from six import StringIO
 
+from cloudinit.distros.parsers import chop_comment
+from cloudinit import log as logging
 from cloudinit import util
 
-from cloudinit.distros.parsers import chop_comment
+LOG = logging.getLogger(__name__)
 
 
 # See: man resolv.conf
@@ -91,9 +81,10 @@ class ResolvConf(object):
         if len(new_ns) == len(current_ns):
             return current_ns
         if len(current_ns) >= 3:
-            # Hard restriction on only 3 name servers
-            raise ValueError(("Adding %r would go beyond the "
-                              "'3' maximum name servers") % (ns))
+            LOG.warn("ignoring nameserver %r: adding would "
+                     "exceed the maximum of "
+                     "'3' name servers (see resolv.conf(5))" % (ns))
+            return current_ns[:3]
         self._remove_option('nameserver')
         for n in new_ns:
             self._contents.append(('option', ['nameserver', n, '']))
@@ -167,3 +158,5 @@ class ResolvConf(object):
                 raise IOError("Unexpected resolv.conf option %s" % (cfg_opt))
             entries.append(("option", [cfg_opt, cfg_values, tail]))
         return entries
+
+# vi: ts=4 expandtab

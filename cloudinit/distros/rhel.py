@@ -1,30 +1,16 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2012 Canonical Ltd.
+# Copyright (C) 2012, 2013 Hewlett-Packard Development Company, L.P.
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Copyright (C) 2012 Canonical Ltd.
-#    Copyright (C) 2012, 2013 Hewlett-Packard Development Company, L.P.
-#    Copyright (C) 2012 Yahoo! Inc.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 from cloudinit import distros
 from cloudinit import helpers
 from cloudinit import log as logging
-from cloudinit.net.network_state import parse_net_config_data
-from cloudinit.net import sysconfig
 from cloudinit import util
 
 from cloudinit.distros import net_util
@@ -61,15 +47,13 @@ class Distro(distros.Distro):
         # should only happen say once per instance...)
         self._runner = helpers.Runners(paths)
         self.osfamily = 'redhat'
-        self._net_renderer = sysconfig.Renderer()
+        cfg['ssh_svcname'] = 'sshd'
 
     def install_packages(self, pkglist):
         self.package_command('install', pkgs=pkglist)
 
     def _write_network_config(self, netconfig):
-        ns = parse_net_config_data(netconfig)
-        self._net_renderer.render_network_state("/", ns)
-        return []
+        return self._supported_write_network_config(netconfig)
 
     def _write_network(self, settings):
         # TODO(harlowja) fix this... since this is the ubuntu format
@@ -201,13 +185,18 @@ class Distro(distros.Distro):
         if pkgs is None:
             pkgs = []
 
-        cmd = ['yum']
-        # If enabled, then yum will be tolerant of errors on the command line
-        # with regard to packages.
-        # For example: if you request to install foo, bar and baz and baz is
-        # installed; yum won't error out complaining that baz is already
-        # installed.
-        cmd.append("-t")
+        if util.which('dnf'):
+            LOG.debug('Using DNF for package management')
+            cmd = ['dnf']
+        else:
+            LOG.debug('Using YUM for package management')
+            # the '-t' argument makes yum tolerant of errors on the command
+            # line with regard to packages.
+            #
+            # For example: if you request to install foo, bar and baz and baz
+            # is installed; yum won't error out complaining that baz is already
+            # installed.
+            cmd = ['yum', '-t']
         # Determines whether or not yum prompts for confirmation
         # of critical actions. We don't want to prompt...
         cmd.append("-y")
@@ -228,3 +217,5 @@ class Distro(distros.Distro):
     def update_package_sources(self):
         self._runner.run("update-sources", self.package_command,
                          ["makecache"], freq=PER_INSTANCE)
+
+# vi: ts=4 expandtab

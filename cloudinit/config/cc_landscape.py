@@ -1,22 +1,59 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2011 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2011 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Landscape
+---------
+**Summary:** install and configure landscape client
+
+This module installs and configures ``landscape-client``. The landscape client
+will only be installed if the key ``landscape`` is present in config. Landscape
+client configuration is given under the ``client`` key under the main
+``landscape`` config key. The config parameters are not interpreted by
+cloud-init, but rather are converted into a ConfigObj formatted file and
+written out to ``/etc/landscape/client.conf``.
+
+The following default client config is provided, but can be overridden::
+
+    landscape:
+        client:
+            log_level: "info"
+            url: "https://landscape.canonical.com/message-system"
+            ping_url: "http://landscape.canoncial.com/ping"
+            data_path: "/var/lib/landscape/client"
+
+.. note::
+    see landscape documentation for client config keys
+
+.. note::
+    if ``tags`` is defined, its contents should be a string delimited with
+    ``,`` rather than a list
+
+**Internal name:** ``cc_landscape``
+
+**Module frequency:** per instance
+
+**Supported distros:** ubuntu
+
+**Config keys**::
+
+    landscape:
+        client:
+            url: "https://landscape.canonical.com/message-system"
+            ping_url: "http://landscape.canonical.com/ping"
+            data_path: "/var/lib/landscape/client"
+            http_proxy: "http://my.proxy.com/foobar"
+            https_proxy: "https://my.proxy.com/foobar"
+            tags: "server,cloud"
+            computer_title: "footitle"
+            registration_key: "fookey"
+            account_name: "fooaccount"
+"""
 
 import os
 
@@ -97,3 +134,5 @@ def merge_together(objs):
         else:
             cfg.merge(ConfigObj(obj))
     return cfg
+
+# vi: ts=4 expandtab

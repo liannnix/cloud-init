@@ -1,20 +1,40 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2016 Canonical Ltd.
 #
-#    Copyright (C) 2016 Canonical Ltd.
+# Author: Ryan Harper <ryan.harper@canonical.com>
 #
-#    Author: Ryan Harper <ryan.harper@canonical.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+NTP
+---
+**Summary:** enable and configure ntp
+
+Handle ntp configuration. If ntp is not installed on the system and ntp
+configuration is specified, ntp will be installed. If there is a default ntp
+config file in the image or one is present in the distro's ntp package, it will
+be copied to ``/etc/ntp.conf.dist`` before any changes are made. A list of ntp
+pools and ntp servers can be provided under the ``ntp`` config key. If no ntp
+servers or pools are provided, 4 pools will be used in the format
+``{0-3}.{distro}.pool.ntp.org``.
+
+**Internal name:** ``cc_ntp``
+
+**Module frequency:** per instance
+
+**Supported distros:** centos, debian, fedora, opensuse, ubuntu
+
+**Config keys**::
+
+    ntp:
+        pools:
+            - 0.company.pool.ntp.org
+            - 1.company.pool.ntp.org
+            - ntp.myorg.org
+        servers:
+            - my.ntp.server.local
+            - ntp.ubuntu.com
+            - 192.168.23.2
+"""
 
 from cloudinit import log as logging
 from cloudinit.settings import PER_INSTANCE
@@ -104,3 +124,5 @@ def write_ntp_config_template(cfg, cloud):
                                 "not rendering %s"), NTP_CONF)
 
     templater.render_to_file(template_fn, NTP_CONF, params)
+
+# vi: ts=4 expandtab

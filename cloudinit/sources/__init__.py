@@ -1,24 +1,12 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2012 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Copyright (C) 2012 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
-#    Copyright (C) 2012 Yahoo! Inc.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import abc
 import copy
@@ -194,6 +182,8 @@ class DataSource(object):
             fqdn = util.get_fqdn_from_hosts(hostname)
             if fqdn and fqdn.find(".") > 0:
                 toks = str(fqdn).split(".")
+            elif hostname and hostname.find(".") > 0:
+                toks = str(hostname).split(".")
             elif hostname:
                 toks = [hostname, defdomain]
             else:
@@ -259,6 +249,18 @@ class DataSource(object):
 
     @property
     def first_instance_boot(self):
+        return
+
+    def activate(self, cfg, is_new_instance):
+        """activate(cfg, is_new_instance)
+
+        This is called before the init_modules will be called.
+        The cfg is fully up to date config, it contains a merged view of
+           system config, datasource config, user config, vendor config.
+        It should be used rather than the sys_cfg passed to __init__.
+
+        is_new_instance is a boolean indicating if this is a new instance.
+        """
         return
 
 
@@ -394,3 +396,5 @@ def list_from_depends(depends, ds_list):
         if depset == set(deps):
             ret_list.append(cls)
     return ret_list
+
+# vi: ts=4 expandtab

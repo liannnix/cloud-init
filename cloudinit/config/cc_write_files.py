@@ -1,20 +1,50 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Copyright (C) 2012 Yahoo! Inc.
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Write Files
+-----------
+**Summary:** write arbitrary files
+
+Write out arbitrary content to files, optionally setting permissions. Content
+can be specified in plain text or binary. Data encoded with either base64 or
+binary gzip data can be specified and will be decoded before being written.
+
+.. note::
+    if multiline data is provided, care should be taken to ensure that it
+    follows yaml formatting standargs. to specify binary data, use the yaml
+    option ``!!binary``
+
+**Internal name:** ``cc_write_files``
+
+**Module frequency:** per instance
+
+**Supported distros:** all
+
+**Config keys**::
+
+    write_files:
+        - encoding: b64
+          content: CiMgVGhpcyBmaWxlIGNvbnRyb2xzIHRoZSBzdGF0ZSBvZiBTRUxpbnV4...
+          owner: root:root
+          path: /etc/sysconfig/selinux
+          permissions: '0644'
+        - content: |
+            # My new /etc/sysconfig/samba file
+
+            SMDBOPTIONS="-D"
+          path: /etc/sysconfig/samba
+        - content: !!binary |
+            f0VMRgIBAQAAAAAAAAAAAAIAPgABAAAAwARAAAAAAABAAAAAAAAAAJAVAAAAAA
+            AEAAHgAdAAYAAAAFAAAAQAAAAAAAAABAAEAAAAAAAEAAQAAAAAAAwAEAAAAAAA
+            AAAAAAAAAwAAAAQAAAAAAgAAAAAAAAACQAAAAAAAAAJAAAAAAAAcAAAAAAAAAB
+            ...
+          path: /bin/arch
+          permissions: '0555'
+"""
 
 import base64
 import os
@@ -103,3 +133,5 @@ def extract_contents(contents, extraction_types):
         elif t == UNKNOWN_ENC:
             pass
     return result
+
+# vi: ts=4 expandtab

@@ -1,20 +1,8 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2014 Yahoo! Inc.
 #
-#    Copyright (C) 2014 Yahoo! Inc.
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import time
 
@@ -57,6 +45,7 @@ class DataSourceOpenStack(openstack.SourceMixin, sources.DataSource):
         # max_wait < 0 indicates do not wait
         max_wait = -1
         timeout = 10
+        retries = 5
 
         try:
             max_wait = int(self.ds_cfg.get("max_wait", max_wait))
@@ -67,7 +56,13 @@ class DataSourceOpenStack(openstack.SourceMixin, sources.DataSource):
             timeout = max(0, int(self.ds_cfg.get("timeout", timeout)))
         except Exception:
             util.logexc(LOG, "Failed to get timeout, using %s", timeout)
-        return (max_wait, timeout)
+
+        try:
+            retries = int(self.ds_cfg.get("retries", retries))
+        except Exception:
+            util.logexc(LOG, "Failed to get max wait. using %s", retries)
+
+        return (max_wait, timeout, retries)
 
     def wait_for_metadata_service(self):
         urls = self.ds_cfg.get("metadata_urls", [DEF_MD_URL])
@@ -88,7 +83,7 @@ class DataSourceOpenStack(openstack.SourceMixin, sources.DataSource):
             md_urls.append(md_url)
             url2base[md_url] = url
 
-        (max_wait, timeout) = self._get_url_settings()
+        (max_wait, timeout, retries) = self._get_url_settings()
         start_time = time.time()
         avail_url = url_helper.wait_for_url(urls=md_urls, max_wait=max_wait,
                                             timeout=timeout)
@@ -101,12 +96,14 @@ class DataSourceOpenStack(openstack.SourceMixin, sources.DataSource):
         self.metadata_address = url2base.get(avail_url)
         return bool(avail_url)
 
-    def get_data(self, retries=5, timeout=5):
+    def get_data(self):
         try:
             if not self.wait_for_metadata_service():
                 return False
         except IOError:
             return False
+
+        (max_wait, timeout, retries) = self._get_url_settings()
 
         try:
             results = util.log_time(LOG.debug,
@@ -166,3 +163,5 @@ datasources = [
 # Return a list of data sources that match this set of dependencies
 def get_datasource_list(depends):
     return sources.list_from_depends(depends, datasources)
+
+# vi: ts=4 expandtab

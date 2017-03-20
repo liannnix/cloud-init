@@ -1,3 +1,5 @@
+# This file is part of cloud-init. See LICENSE file for license information.
+
 import json
 import logging
 import os
@@ -232,7 +234,7 @@ class WALinuxAgentShim(object):
     def _get_value_from_leases_file(fallback_lease_file):
         leases = []
         content = util.load_file(fallback_lease_file)
-        LOG.debug("content is {}".format(content))
+        LOG.debug("content is %s", content)
         for line in content.splitlines():
             if 'unknown-245' in line:
                 # Example line from Ubuntu
@@ -353,3 +355,5 @@ def get_metadata_from_fabric(fallback_lease_file=None):
         return shim.register_with_azure_and_fetch_data()
     finally:
         shim.clean_up()
+
+# vi: ts=4 expandtab

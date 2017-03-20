@@ -1,23 +1,52 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2009-2011 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2009-2011 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Author: Marc Cluet <marc.cluet@canonical.com>
+# Based on code by Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Marc Cluet <marc.cluet@canonical.com>
-#    Based on code by Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Mcollective
+-----------
+**Summary:** install, configure and start mcollective
+
+This module installs, configures and starts mcollective. If the ``mcollective``
+key is present in config, then mcollective will be installed and started.
+
+Configuration for ``mcollective`` can be specified in the ``conf`` key under
+``mcollective``. Each config value consists of a key value pair and will be
+written to ``/etc/mcollective/server.cfg``. The ``public-cert`` and
+``private-cert`` keys, if present in conf may be used to specify the public and
+private certificates for mcollective. Their values will be written to
+``/etc/mcollective/ssl/server-public.pem`` and
+``/etc/mcollective/ssl/server-private.pem``.
+
+.. note::
+    The ec2 metadata service is readable by non-root users.
+    If security is a concern, use include-once and ssl urls.
+
+**Internal name:** ``cc_mcollective``
+
+**Module frequency:** per instance
+
+**Supported distros:** all
+
+**Config keys**::
+
+    mcollective:
+        conf:
+            <key>: <value>
+            public-cert: |
+                -------BEGIN CERTIFICATE--------
+                <cert data>
+                -------END CERTIFICATE--------
+            private-cert: |
+                -------BEGIN CERTIFICATE--------
+                <cert data>
+                -------END CERTIFICATE--------
+"""
 
 import errno
 
@@ -114,3 +143,5 @@ def handle(name, cfg, cloud, log, _args):
 
     # restart mcollective to handle updated config
     util.subp(['service', 'mcollective', 'restart'], capture=False)
+
+# vi: ts=4 expandtab

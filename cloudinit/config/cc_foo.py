@@ -1,22 +1,24 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2009-2010 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2009-2010 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Foo
+---
+**Summary:** example module
+
+Example to show module structure. Does not do anything.
+
+**Internal name:** ``cc_foo``
+
+**Module frequency:** per instance
+
+**Supported distros:** all
+"""
 
 from cloudinit.settings import PER_INSTANCE
 
@@ -35,7 +37,7 @@ from cloudinit.settings import PER_INSTANCE
 #    Typically those are from module configuration where the module
 #    is defined with some extra configuration that will eventually
 #    be translated from yaml into arguments to this module.
-# 2. A optional 'frequency' that defines how often this module should be ran.
+# 2. A optional 'frequency' that defines how often this module should be run.
 #    Typically one of PER_INSTANCE, PER_ALWAYS, PER_ONCE. If not
 #    provided PER_INSTANCE will be assumed.
 #    See settings.py for these constants.
@@ -50,3 +52,5 @@ frequency = PER_INSTANCE
 
 def handle(name, _cfg, _cloud, log, _args):
     log.debug("Hi from module %s", name)
+
+# vi: ts=4 expandtab

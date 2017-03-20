@@ -1,49 +1,64 @@
-# vi: ts=4 expandtab
-#
+# This file is part of cloud-init. See LICENSE file for license information.
+
 """
-snappy modules allows configuration of snappy.
-Example config:
-  #cloud-config
-  snappy:
-    system_snappy: auto
-    ssh_enabled: auto
-    packages: [etcd, pkg2.smoser]
-    config:
-      pkgname:
-        key2: value2
-      pkg2:
-        key1: value1
-    packages_dir: '/writable/user-data/cloud-init/snaps'
+Snappy
+------
+**Summary:** snappy modules allows configuration of snappy.
 
- - ssh_enabled:
-   This controls the system's ssh service.  The default value is 'auto'.
-     True:  enable ssh service
-     False: disable ssh service
-     auto:  enable ssh service if either ssh keys have been provided
-            or user has requested password authentication (ssh_pwauth).
+The below example config config would install ``etcd``, and then install
+``pkg2.smoser`` with a ``<config-file>`` argument where ``config-file`` has
+``config-blob`` inside it. If ``pkgname`` is installed already, then
+``snappy config pkgname <file>``
+will be called where ``file`` has ``pkgname-config-blob`` as its content.
 
- - snap installation and config
-   The above would install 'etcd', and then install 'pkg2.smoser' with a
-   '<config-file>' argument where 'config-file' has 'config-blob' inside it.
-   If 'pkgname' is installed already, then 'snappy config pkgname <file>'
-   will be called where 'file' has 'pkgname-config-blob' as its content.
+Entries in ``config`` can be namespaced or non-namespaced for a package.
+In either case, the config provided to snappy command is non-namespaced.
+The package name is provided as it appears.
 
-   Entries in 'config' can be namespaced or non-namespaced for a package.
-   In either case, the config provided to snappy command is non-namespaced.
-   The package name is provided as it appears.
+If ``packages_dir`` has files in it that end in ``.snap``, then they are
+installed.  Given 3 files:
 
-   If 'packages_dir' has files in it that end in '.snap', then they are
-   installed.  Given 3 files:
-     <packages_dir>/foo.snap
-     <packages_dir>/foo.config
-     <packages_dir>/bar.snap
-   cloud-init will invoke:
-     snappy install <packages_dir>/foo.snap <packages_dir>/foo.config
-     snappy install <packages_dir>/bar.snap
+  - <packages_dir>/foo.snap
+  - <packages_dir>/foo.config
+  - <packages_dir>/bar.snap
 
-   Note, that if provided a 'config' entry for 'ubuntu-core', then
-   cloud-init will invoke: snappy config ubuntu-core <config>
-   Allowing you to configure ubuntu-core in this way.
+cloud-init will invoke:
+
+  - snappy install <packages_dir>/foo.snap <packages_dir>/foo.config
+  - snappy install <packages_dir>/bar.snap
+
+.. note::
+    that if provided a ``config`` entry for ``ubuntu-core``, then
+    cloud-init will invoke: snappy config ubuntu-core <config>
+    Allowing you to configure ubuntu-core in this way.
+
+The ``ssh_enabled`` key controls the system's ssh service. The default value
+is ``auto``. Options are:
+
+  - **True:** enable ssh service
+  - **False:** disable ssh service
+  - **auto:** enable ssh service if either ssh keys have been provided
+    or user has requested password authentication (ssh_pwauth).
+
+**Internal name:** ``cc_snappy``
+
+**Module frequency:** per instance
+
+**Supported distros:** ubuntu
+
+**Config keys**::
+
+    #cloud-config
+    snappy:
+        system_snappy: auto
+        ssh_enabled: auto
+        packages: [etcd, pkg2.smoser]
+        config:
+            pkgname:
+                key2: value2
+            pkg2:
+                key1: value1
+        packages_dir: '/writable/user-data/cloud-init/snaps'
 """
 
 from cloudinit import log as logging
@@ -230,24 +245,14 @@ def disable_enable_ssh(enabled):
         util.write_file(not_to_be_run, "cloud-init\n")
 
 
-def system_is_snappy():
-    # channel.ini is configparser loadable.
-    # snappy will move to using /etc/system-image/config.d/*.ini
-    # this is certainly not a perfect test, but good enough for now.
-    content = util.load_file("/etc/system-image/channel.ini", quiet=True)
-    if 'ubuntu-core' in content.lower():
-        return True
-    if os.path.isdir("/etc/system-image/config.d/"):
-        return True
-    return False
-
-
 def set_snappy_command():
     global SNAPPY_CMD
     if util.which("snappy-go"):
         SNAPPY_CMD = "snappy-go"
-    else:
+    elif util.which("snappy"):
         SNAPPY_CMD = "snappy"
+    else:
+        SNAPPY_CMD = "snap"
     LOG.debug("snappy command is '%s'", SNAPPY_CMD)
 
 
@@ -262,7 +267,7 @@ def handle(name, cfg, cloud, log, args):
         LOG.debug("%s: System is not snappy. disabling", name)
         return
 
-    if sys_snappy.lower() == "auto" and not(system_is_snappy()):
+    if sys_snappy.lower() == "auto" and not(util.system_is_snappy()):
         LOG.debug("%s: 'auto' mode, and system not snappy", name)
         return
 
@@ -304,3 +309,5 @@ def handle(name, cfg, cloud, log, args):
 
     if fails:
         raise Exception("failed to install/configure snaps")
+
+# vi: ts=4 expandtab

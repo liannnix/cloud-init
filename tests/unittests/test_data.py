@@ -1,10 +1,10 @@
+# This file is part of cloud-init. See LICENSE file for license information.
+
 """Tests for handling of userdata within cloud init."""
 
 import gzip
 import logging
 import os
-import shutil
-import tempfile
 
 try:
     from unittest import mock
@@ -98,10 +98,7 @@ class TestConsumeUserData(helpers.FilesystemMockingTestCase):
 
         ci = stages.Init()
         ci.datasource = FakeDataSource(blob)
-        new_root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, new_root)
-        self.patchUtils(new_root)
-        self.patchOS(new_root)
+        self.reRoot()
         ci.fetch()
         ci.consume_data()
         cc_contents = util.load_file(ci.paths.get_ipath("cloud_config"))
@@ -127,9 +124,7 @@ class TestConsumeUserData(helpers.FilesystemMockingTestCase):
      { "op": "add", "path": "/foo", "value": "quxC" }
 ]
 '''
-        new_root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, new_root)
-        self._patchIn(new_root)
+        self.reRoot()
         initer = stages.Init()
         initer.datasource = FakeDataSource(user_blob, vendordata=vendor_blob)
         initer.read_cfg()
@@ -167,9 +162,7 @@ class TestConsumeUserData(helpers.FilesystemMockingTestCase):
      { "op": "add", "path": "/foo", "value": "quxC" }
 ]
 '''
-        new_root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, new_root)
-        self._patchIn(new_root)
+        self.reRoot()
         initer = stages.Init()
         initer.datasource = FakeDataSource(user_blob, vendordata=vendor_blob)
         initer.read_cfg()
@@ -212,12 +205,9 @@ c: d
         message.attach(message_cc)
         message.attach(message_jp)
 
+        self.reRoot()
         ci = stages.Init()
         ci.datasource = FakeDataSource(str(message))
-        new_root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, new_root)
-        self.patchUtils(new_root)
-        self.patchOS(new_root)
         ci.fetch()
         ci.consume_data()
         cc_contents = util.load_file(ci.paths.get_ipath("cloud_config"))
@@ -245,9 +235,7 @@ name: user
 run:
  - z
 '''
-        new_root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, new_root)
-        self._patchIn(new_root)
+        self.reRoot()
         initer = stages.Init()
         initer.datasource = FakeDataSource(user_blob, vendordata=vendor_blob)
         initer.read_cfg()
@@ -281,9 +269,7 @@ vendor_data:
   enabled: True
   prefix: /bin/true
 '''
-        new_root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, new_root)
-        self._patchIn(new_root)
+        new_root = self.reRoot()
         initer = stages.Init()
         initer.datasource = FakeDataSource(user_blob, vendordata=vendor_blob)
         initer.read_cfg()
@@ -342,10 +328,7 @@ p: 1
         paths = c_helpers.Paths({}, ds=FakeDataSource(''))
         cloud_cfg = handlers.cloud_config.CloudConfigPartHandler(paths)
 
-        new_root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, new_root)
-        self.patchUtils(new_root)
-        self.patchOS(new_root)
+        self.reRoot()
         cloud_cfg.handle_part(None, handlers.CONTENT_START, None, None, None,
                               None)
         for i, m in enumerate(messages):
@@ -365,6 +348,7 @@ p: 1
 
     def test_unhandled_type_warning(self):
         """Raw text without magic is ignored but shows warning."""
+        self.reRoot()
         ci = stages.Init()
         data = "arbitrary text\n"
         ci.datasource = FakeDataSource(data)
@@ -402,10 +386,7 @@ c: 4
         message.attach(gzip_part(base_content2))
         ci = stages.Init()
         ci.datasource = FakeDataSource(str(message))
-        new_root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, new_root)
-        self.patchUtils(new_root)
-        self.patchOS(new_root)
+        self.reRoot()
         ci.fetch()
         ci.consume_data()
         contents = util.load_file(ci.paths.get_ipath("cloud_config"))
@@ -418,6 +399,7 @@ c: 4
 
     def test_mime_text_plain(self):
         """Mime message of type text/plain is ignored but shows warning."""
+        self.reRoot()
         ci = stages.Init()
         message = MIMEBase("text", "plain")
         message.set_payload("Just text")
@@ -435,6 +417,7 @@ c: 4
 
     def test_shellscript(self):
         """Raw text starting #!/bin/sh is treated as script."""
+        self.reRoot()
         ci = stages.Init()
         script = "#!/bin/sh\necho hello\n"
         ci.datasource = FakeDataSource(script)
@@ -453,6 +436,7 @@ c: 4
 
     def test_mime_text_x_shellscript(self):
         """Mime message of type text/x-shellscript is treated as script."""
+        self.reRoot()
         ci = stages.Init()
         script = "#!/bin/sh\necho hello\n"
         message = MIMEBase("text", "x-shellscript")
@@ -473,6 +457,7 @@ c: 4
 
     def test_mime_text_plain_shell(self):
         """Mime type text/plain starting #!/bin/sh is treated as script."""
+        self.reRoot()
         ci = stages.Init()
         script = "#!/bin/sh\necho hello\n"
         message = MIMEBase("text", "plain")
@@ -493,6 +478,7 @@ c: 4
 
     def test_mime_application_octet_stream(self):
         """Mime type application/octet-stream is ignored but shows warning."""
+        self.reRoot()
         ci = stages.Init()
         message = MIMEBase("application", "octet-stream")
         message.set_payload(b'\xbf\xe6\xb2\xc3\xd3\xba\x13\xa4\xd8\xa1\xcc')
@@ -516,6 +502,7 @@ c: 4
                 {'content': non_decodable}]
         message = b'#cloud-config-archive\n' + util.yaml_dumps(data).encode()
 
+        self.reRoot()
         ci = stages.Init()
         ci.datasource = FakeDataSource(message)
 
@@ -574,3 +561,77 @@ class TestConvertString(helpers.TestCase):
         text = "hi mom"
         msg = ud.convert_string(text)
         self.assertEqual(text, msg.get_payload(decode=False))
+
+
+class TestFetchBaseConfig(helpers.TestCase):
+    def test_only_builtin_gets_builtin(self):
+        ret = helpers.wrap_and_call(
+            'cloudinit.stages',
+            {'util.read_conf_with_confd': None,
+             'util.read_conf_from_cmdline': None,
+             'read_runtime_config': {'return_value': {}}},
+            stages.fetch_base_config)
+        self.assertEqual(util.get_builtin_cfg(), ret)
+
+    def test_conf_d_overrides_defaults(self):
+        builtin = util.get_builtin_cfg()
+        test_key = sorted(builtin)[0]
+        test_value = 'test'
+        ret = helpers.wrap_and_call(
+            'cloudinit.stages',
+            {'util.read_conf_with_confd':
+                {'return_value': {test_key: test_value}},
+             'util.read_conf_from_cmdline': None,
+             'read_runtime_config': {'return_value': {}}},
+            stages.fetch_base_config)
+        self.assertEqual(ret.get(test_key), test_value)
+        builtin[test_key] = test_value
+        self.assertEqual(ret, builtin)
+
+    def test_cmdline_overrides_defaults(self):
+        builtin = util.get_builtin_cfg()
+        test_key = sorted(builtin)[0]
+        test_value = 'test'
+        cmdline = {test_key: test_value}
+        ret = helpers.wrap_and_call(
+            'cloudinit.stages',
+            {'util.read_conf_from_cmdline': {'return_value': cmdline},
+             'util.read_conf_with_confd': None,
+             'read_runtime_config': None},
+            stages.fetch_base_config)
+        self.assertEqual(ret.get(test_key), test_value)
+        builtin[test_key] = test_value
+        self.assertEqual(ret, builtin)
+
+    def test_cmdline_overrides_confd_runtime_and_defaults(self):
+        builtin = {'key1': 'value0', 'key3': 'other2'}
+        conf_d = {'key1': 'value1', 'key2': 'other1'}
+        cmdline = {'key3': 'other3', 'key2': 'other2'}
+        runtime = {'key3': 'runtime3'}
+        ret = helpers.wrap_and_call(
+            'cloudinit.stages',
+            {'util.read_conf_with_confd': {'return_value': conf_d},
+             'util.get_builtin_cfg': {'return_value': builtin},
+             'read_runtime_config': {'return_value': runtime},
+             'util.read_conf_from_cmdline': {'return_value': cmdline}},
+            stages.fetch_base_config)
+        self.assertEqual(ret, {'key1': 'value1', 'key2': 'other2',
+                               'key3': 'other3'})
+
+    def test_order_precedence_is_builtin_system_runtime_cmdline(self):
+        builtin = {'key1': 'builtin0', 'key3': 'builtin3'}
+        conf_d = {'key1': 'confd1', 'key2': 'confd2', 'keyconfd1': 'kconfd1'}
+        runtime = {'key1': 'runtime1', 'key2': 'runtime2'}
+        cmdline = {'key1': 'cmdline1'}
+        ret = helpers.wrap_and_call(
+            'cloudinit.stages',
+            {'util.read_conf_with_confd': {'return_value': conf_d},
+             'util.get_builtin_cfg': {'return_value': builtin},
+             'util.read_conf_from_cmdline': {'return_value': cmdline},
+             'read_runtime_config': {'return_value': runtime},
+             },
+            stages.fetch_base_config)
+        self.assertEqual(ret, {'key1': 'cmdline1', 'key2': 'runtime2',
+                               'key3': 'builtin3', 'keyconfd1': 'kconfd1'})
+
+# vi: ts=4 expandtab

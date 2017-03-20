@@ -1,8 +1,8 @@
+# Copyright (C) 2015-2016 Bigstep Cloud Ltd.
 #
-#    Copyright (C) 2015-2016 Bigstep Cloud Ltd.
+# Author: Alexandru Sirbu <alexandru.sirbu@bigstep.com>
 #
-#    Author: Alexandru Sirbu <alexandru.sirbu@bigstep.com>
-#
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import errno
 import json
@@ -46,6 +46,7 @@ def get_url_from_file():
             raise
     return content
 
+
 # Used to match classes to dependencies
 datasources = [
     (DataSourceBigstep, (sources.DEP_FILESYSTEM, sources.DEP_NETWORK)),
@@ -55,3 +56,5 @@ datasources = [
 # Return a list of data sources that match this set of dependencies
 def get_datasource_list(depends):
     return sources.list_from_depends(depends, datasources)
+
+# vi: ts=4 expandtab

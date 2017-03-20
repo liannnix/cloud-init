@@ -1,22 +1,36 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2011 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2011 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Resizefs
+--------
+**Summary:** resize filesystem
+
+Resize a filesystem to use all avaliable space on partition. This module is
+useful along with ``cc_growpart`` and will ensure that if the root partition
+has been resized the root filesystem will be resized along with it. By default,
+``cc_resizefs`` will resize the root partition and will block the boot process
+while the resize command is running. Optionally, the resize operation can be
+performed in the background while cloud-init continues running modules. This
+can be enabled by setting ``resize_rootfs`` to ``true``. This module can be
+disabled altogether by setting ``resize_rootfs`` to ``false``.
+
+**Internal name:** ``cc_resizefs``
+
+**Module frequency:** per always
+
+**Supported distros:** all
+
+**Config keys**::
+
+    resize_rootfs: <true/false/"noblock">
+    resize_rootfs_tmp: <directory>
+"""
 
 import errno
 import os
@@ -42,6 +56,7 @@ def _resize_xfs(mount_point, devpth):
 
 def _resize_ufs(mount_point, devpth):
     return ('growfs', devpth)
+
 
 # Do not use a dictionary as these commands should be able to be used
 # for multiple filesystem types if possible, e.g. one command for
@@ -183,3 +198,5 @@ def do_resize(resize_cmd, log):
         raise
     # TODO(harlowja): Should we add a fsck check after this to make
     # sure we didn't corrupt anything?
+
+# vi: ts=4 expandtab

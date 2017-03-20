@@ -1,31 +1,36 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Copyright (C) 2012 Yahoo! Inc.
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+SSH Authkey Fingerprints
+------------------------
+**Summary:** log fingerprints of user ssh keys
+
+Write fingerprints of authorized keys for each user to log. This is enabled by
+default, but can be disabled using ``no_ssh_fingerprints``. The hash type for
+the keys can be specified, but defaults to ``md5``.
+
+**Internal name:** `` cc_ssh_authkey_fingerprints``
+
+**Module frequency:** per instance
+
+**Supported distros:** all
+
+**Config keys**::
+
+    no_ssh_fingerprints: <true/false>
+    authkey_hash: <hash type>
+"""
 
 import base64
 import hashlib
 
 from prettytable import PrettyTable
 
-# Ensure this is aliased to a name not 'distros'
-# since the module attribute 'distros'
-# is a list of distros that are supported, not a sub-module
-from cloudinit import distros as ds
-
+from cloudinit.distros import ug_util
 from cloudinit import ssh_util
 from cloudinit import util
 
@@ -98,8 +103,10 @@ def handle(name, cfg, cloud, log, _args):
         return
 
     hash_meth = util.get_cfg_option_str(cfg, "authkey_hash", "md5")
-    (users, _groups) = ds.normalize_users_groups(cfg, cloud.distro)
+    (users, _groups) = ug_util.normalize_users_groups(cfg, cloud.distro)
     for (user_name, _cfg) in users.items():
         (key_fn, key_entries) = ssh_util.extract_authorized_keys(user_name)
         _pprint_key_entries(user_name, key_fn,
                             key_entries, hash_meth)
+
+# vi: ts=4 expandtab

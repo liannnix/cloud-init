@@ -1,3 +1,5 @@
+# This file is part of cloud-init. See LICENSE file for license information.
+
 from cloudinit.distros.parsers import resolv_conf
 from cloudinit.distros import rhel_util
 
@@ -44,7 +46,7 @@ class TestResolvHelper(TestCase):
         self.assertNotIn('10.3', rp.nameservers)
         self.assertEqual(len(rp.nameservers), 3)
         rp.add_nameserver('10.2')
-        self.assertRaises(ValueError, rp.add_nameserver, '10.3')
+        rp.add_nameserver('10.3')
         self.assertNotIn('10.3', rp.nameservers)
 
     def test_search_domains(self):
@@ -65,3 +67,5 @@ class TestResolvHelper(TestCase):
         self.assertEqual(len(rp.search_domains), 6)
         self.assertRaises(ValueError, rp.add_search_domain, 'bbb5.y.com')
         self.assertEqual(len(rp.search_domains), 6)
+
+# vi: ts=4 expandtab

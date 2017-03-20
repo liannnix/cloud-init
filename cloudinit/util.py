@@ -1,24 +1,12 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2012 Canonical Ltd.
+# Copyright (C) 2012, 2013 Hewlett-Packard Development Company, L.P.
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Copyright (C) 2012 Canonical Ltd.
-#    Copyright (C) 2012, 2013 Hewlett-Packard Development Company, L.P.
-#    Copyright (C) 2012 Yahoo! Inc.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import contextlib
 import copy as obj_copy
@@ -154,7 +142,7 @@ def target_path(target, path=None):
 
 def decode_binary(blob, encoding='utf-8'):
     # Converts a binary type into a text type using given encoding.
-    if isinstance(blob, six.text_type):
+    if isinstance(blob, six.string_types):
         return blob
     return blob.decode(encoding)
 
@@ -199,7 +187,7 @@ def fully_decoded_payload(part):
             encoding = charset.input_codec
         else:
             encoding = 'utf-8'
-        return cte_payload.decode(encoding, errors='surrogateescape')
+        return cte_payload.decode(encoding, 'surrogateescape')
     return cte_payload
 
 
@@ -235,15 +223,16 @@ class ProcessExecutionError(IOError):
                     'Command: %(cmd)s\n'
                     'Exit code: %(exit_code)s\n'
                     'Reason: %(reason)s\n'
-                    'Stdout: %(stdout)r\n'
-                    'Stderr: %(stderr)r')
+                    'Stdout: %(stdout)s\n'
+                    'Stderr: %(stderr)s')
+    empty_attr = '-'
 
     def __init__(self, stdout=None, stderr=None,
                  exit_code=None, cmd=None,
                  description=None, reason=None,
                  errno=None):
         if not cmd:
-            self.cmd = '-'
+            self.cmd = self.empty_attr
         else:
             self.cmd = cmd
 
@@ -253,38 +242,55 @@ class ProcessExecutionError(IOError):
             self.description = description
 
         if not isinstance(exit_code, six.integer_types):
-            self.exit_code = '-'
+            self.exit_code = self.empty_attr
         else:
             self.exit_code = exit_code
 
         if not stderr:
-            self.stderr = ''
+            self.stderr = self.empty_attr
         else:
-            self.stderr = stderr
+            self.stderr = self._indent_text(stderr)
 
         if not stdout:
-            self.stdout = ''
+            self.stdout = self.empty_attr
         else:
-            self.stdout = stdout
+            self.stdout = self._indent_text(stdout)
 
         if reason:
             self.reason = reason
         else:
-            self.reason = '-'
+            self.reason = self.empty_attr
 
         self.errno = errno
         message = self.MESSAGE_TMPL % {
-            'description': self.description,
-            'cmd': self.cmd,
-            'exit_code': self.exit_code,
-            'stdout': self.stdout,
-            'stderr': self.stderr,
-            'reason': self.reason,
+            'description': self._ensure_string(self.description),
+            'cmd': self._ensure_string(self.cmd),
+            'exit_code': self._ensure_string(self.exit_code),
+            'stdout': self._ensure_string(self.stdout),
+            'stderr': self._ensure_string(self.stderr),
+            'reason': self._ensure_string(self.reason),
         }
         IOError.__init__(self, message)
-        # For backward compatibility with Python 2.
-        if not hasattr(self, 'message'):
-            self.message = message
+
+    def _ensure_string(self, text):
+        """
+        if data is bytes object, decode
+        """
+        return text.decode() if isinstance(text, six.binary_type) else text
+
+    def _indent_text(self, text, indent_level=8):
+        """
+        indent text on all but the first line, allowing for easy to read output
+        """
+        cr = '\n'
+        indent = ' ' * indent_level
+        # if input is bytes, return bytes
+        if isinstance(text, six.binary_type):
+            cr = cr.encode()
+            indent = indent.encode()
+        # remove any newlines at end of text first to prevent unneeded blank
+        # line in output
+        return text.rstrip(cr).replace(cr, cr + indent)
 
 
 class SeLinuxGuard(object):
@@ -975,6 +981,11 @@ def read_conf_with_confd(cfgfile):
     return mergemanydict([confd_cfg, cfg])
 
 
+def read_conf_from_cmdline(cmdline=None):
+    # return a dictionary or config on the cmdline or None
+    return load_yaml(read_cc_from_cmdline(cmdline=cmdline))
+
+
 def read_cc_from_cmdline(cmdline=None):
     # this should support reading cloud-config information from
     # the kernel command line.  It is intended to support content of the
@@ -1076,31 +1087,6 @@ def get_fqdn_from_hosts(hostname, filename="/etc/hosts"):
     except IOError:
         pass
     return fqdn
-
-
-def get_cmdline_url(names=('cloud-config-url', 'url'),
-                    starts=b"#cloud-config", cmdline=None):
-    if cmdline is None:
-        cmdline = get_cmdline()
-
-    data = keyval_str_to_dict(cmdline)
-    url = None
-    key = None
-    for key in names:
-        if key in data:
-            url = data[key]
-            break
-
-    if not url:
-        return (None, None, None)
-
-    resp = read_file_or_url(url)
-    # allow callers to pass starts as text when comparing to bytes contents
-    starts = encode_text(starts)
-    if resp.ok() and resp.contents.startswith(starts):
-        return (key, url, resp.contents)
-
-    return (key, url, None)
 
 
 def is_resolvable(name):
@@ -1464,25 +1450,6 @@ def ensure_dirs(dirlist, mode=0o755):
         ensure_dir(d, mode)
 
 
-def read_write_cmdline_url(target_fn):
-    if not os.path.exists(target_fn):
-        try:
-            (key, url, content) = get_cmdline_url()
-        except Exception:
-            logexc(LOG, "Failed fetching command line url")
-            return
-        try:
-            if key and content:
-                write_file(target_fn, content, mode=0o600)
-                LOG.debug(("Wrote to %s with contents of command line"
-                          " url %s (len=%s)"), target_fn, url, len(content))
-            elif key and not content:
-                LOG.debug(("Command line key %s with url"
-                          " %s had no contents"), key, url)
-        except Exception:
-            logexc(LOG, "Failed writing url content to %s", target_fn)
-
-
 def yaml_dumps(obj, explicit_start=True, explicit_end=True):
     return yaml.safe_dump(obj,
                           line_break="\n",
@@ -1762,7 +1729,7 @@ def delete_dir_contents(dirname):
 
 
 def subp(args, data=None, rcs=None, env=None, capture=True, shell=False,
-         logstring=False, decode="replace", target=None):
+         logstring=False, decode="replace", target=None, update_env=None):
 
     # not supported in cloud-init (yet), for now kept in the call signature
     # to ease maintaining code shared between cloud-init and curtin
@@ -1773,6 +1740,13 @@ def subp(args, data=None, rcs=None, env=None, capture=True, shell=False,
         rcs = [0]
 
     devnull_fp = None
+
+    if update_env:
+        if env is None:
+            env = os.environ
+        env = env.copy()
+        env.update(update_env)
+
     try:
         if target_path(target) != "/":
             args = ['chroot', target] + list(args)
@@ -1814,7 +1788,7 @@ def subp(args, data=None, rcs=None, env=None, capture=True, shell=False,
             def ldecode(data, m='utf-8'):
                 if not isinstance(data, bytes):
                     return data
-                return data.decode(m, errors=decode)
+                return data.decode(m, decode)
 
             out = ldecode(out)
             err = ldecode(err)
@@ -2026,8 +2000,8 @@ def parse_mount_info(path, mountinfo_lines, log=LOG):
             continue
 
         # Ignore mounts where the common path is not the same.
-        l = min(len(mount_point_elements), len(path_elements))
-        if mount_point_elements[0:l] != path_elements[0:l]:
+        x = min(len(mount_point_elements), len(path_elements))
+        if mount_point_elements[0:x] != path_elements[0:x]:
             continue
 
         # Ignore mount points higher than an already seen mount
@@ -2125,21 +2099,36 @@ def get_mount_info(path, log=LOG):
         return parse_mount(path)
 
 
-def which(program):
-    # Return path of program for execution if found in path
-    def is_exe(fpath):
-        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+def is_exe(fpath):
+    # return boolean indicating if fpath exists and is executable.
+    return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
 
-    _fpath, _ = os.path.split(program)
-    if _fpath:
-        if is_exe(program):
+
+def which(program, search=None, target=None):
+    target = target_path(target)
+
+    if os.path.sep in program:
+        # if program had a '/' in it, then do not search PATH
+        # 'which' does consider cwd here. (cd / && which bin/ls) = bin/ls
+        # so effectively we set cwd to / (or target)
+        if is_exe(target_path(target, program)):
             return program
-    else:
-        for path in os.environ.get("PATH", "").split(os.pathsep):
-            path = path.strip('"')
-            exe_file = os.path.join(path, program)
-            if is_exe(exe_file):
-                return exe_file
+
+    if search is None:
+        paths = [p.strip('"') for p in
+                 os.environ.get("PATH", "").split(os.pathsep)]
+        if target == "/":
+            search = paths
+        else:
+            search = [p for p in paths if p.startswith("/")]
+
+    # normalize path input
+    search = [os.path.abspath(p) for p in search]
+
+    for path in search:
+        ppath = os.path.sep.join((path, program))
+        if is_exe(target_path(target, ppath)):
+            return ppath
 
     return None
 
@@ -2337,7 +2326,9 @@ def read_dmi_data(key):
 
     # running dmidecode can be problematic on some arches (LP: #1243287)
     uname_arch = os.uname()[4]
-    if uname_arch.startswith("arm") or uname_arch == "aarch64":
+    if not (uname_arch == "x86_64" or
+            (uname_arch.startswith("i") and uname_arch[2:] == "86") or
+            uname_arch == 'aarch64'):
         LOG.debug("dmidata is not supported on %s", uname_arch)
         return None
 
@@ -2369,3 +2360,17 @@ def get_installed_packages(target=None):
             pkgs_inst.add(re.sub(":.*", "", pkg))
 
     return pkgs_inst
+
+
+def system_is_snappy():
+    # channel.ini is configparser loadable.
+    # snappy will move to using /etc/system-image/config.d/*.ini
+    # this is certainly not a perfect test, but good enough for now.
+    content = load_file("/etc/system-image/channel.ini", quiet=True)
+    if 'ubuntu-core' in content.lower():
+        return True
+    if os.path.isdir("/etc/system-image/config.d/"):
+        return True
+    return False
+
+# vi: ts=4 expandtab

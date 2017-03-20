@@ -1,24 +1,12 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2009-2010 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Copyright (C) 2012 Yahoo! Inc.
 #
-#    Copyright (C) 2009-2010 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
-#    Copyright (C) 2012 Yahoo! Inc.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Hafliger <juerg.haefliger@hp.com>
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Hafliger <juerg.haefliger@hp.com>
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import os
 import time
@@ -28,24 +16,35 @@ from cloudinit import log as logging
 from cloudinit import sources
 from cloudinit import url_helper as uhelp
 from cloudinit import util
+from cloudinit import warnings
 
 LOG = logging.getLogger(__name__)
-
-DEF_MD_URL = "http://169.254.169.254"
 
 # Which version we are requesting of the ec2 metadata apis
 DEF_MD_VERSION = '2009-04-04'
 
-# Default metadata urls that will be used if none are provided
-# They will be checked for 'resolveability' and some of the
-# following may be discarded if they do not resolve
-DEF_MD_URLS = [DEF_MD_URL, "http://instance-data.:8773"]
+STRICT_ID_PATH = ("datasource", "Ec2", "strict_id")
+STRICT_ID_DEFAULT = "warn"
+
+
+class Platforms(object):
+    ALIYUN = "AliYun"
+    AWS = "AWS"
+    BRIGHTBOX = "Brightbox"
+    SEEDED = "Seeded"
+    UNKNOWN = "Unknown"
 
 
 class DataSourceEc2(sources.DataSource):
+    # Default metadata urls that will be used if none are provided
+    # They will be checked for 'resolveability' and some of the
+    # following may be discarded if they do not resolve
+    metadata_urls = ["http://169.254.169.254", "http://instance-data.:8773"]
+    _cloud_platform = None
+
     def __init__(self, sys_cfg, distro, paths):
         sources.DataSource.__init__(self, sys_cfg, distro, paths)
-        self.metadata_address = DEF_MD_URL
+        self.metadata_address = None
         self.seed_dir = os.path.join(paths.seed_dir, "ec2")
         self.api_ver = DEF_MD_VERSION
 
@@ -55,7 +54,17 @@ class DataSourceEc2(sources.DataSource):
             self.userdata_raw = seed_ret['user-data']
             self.metadata = seed_ret['meta-data']
             LOG.debug("Using seeded ec2 data from %s", self.seed_dir)
+            self._cloud_platform = Platforms.SEEDED
             return True
+
+        strict_mode, _sleep = read_strict_mode(
+            util.get_cfg_by_path(self.sys_cfg, STRICT_ID_PATH,
+                                 STRICT_ID_DEFAULT), ("warn", None))
+
+        LOG.debug("strict_mode: %s, cloud_platform=%s",
+                  strict_mode, self.cloud_platform)
+        if strict_mode == "true" and self.cloud_platform == Platforms.UNKNOWN:
+            return False
 
         try:
             if not self.wait_for_metadata_service():
@@ -65,8 +74,8 @@ class DataSourceEc2(sources.DataSource):
                 ec2.get_instance_userdata(self.api_ver, self.metadata_address)
             self.metadata = ec2.get_instance_metadata(self.api_ver,
                                                       self.metadata_address)
-            LOG.debug("Crawl of metadata service took %s seconds",
-                      int(time.time() - start_time))
+            LOG.debug("Crawl of metadata service took %.3f seconds",
+                      time.time() - start_time)
             return True
         except Exception:
             util.logexc(LOG, "Failed reading from metadata address %s",
@@ -106,7 +115,7 @@ class DataSourceEc2(sources.DataSource):
             return False
 
         # Remove addresses from the list that wont resolve.
-        mdurls = mcfg.get("metadata_urls", DEF_MD_URLS)
+        mdurls = mcfg.get("metadata_urls", self.metadata_urls)
         filtered = [x for x in mdurls if util.is_resolvable_url(x)]
 
         if set(filtered) != set(mdurls):
@@ -117,7 +126,7 @@ class DataSourceEc2(sources.DataSource):
             mdurls = filtered
         else:
             LOG.warn("Empty metadata url list! using default list")
-            mdurls = DEF_MD_URLS
+            mdurls = self.metadata_urls
 
         urls = []
         url2base = {}
@@ -153,6 +162,10 @@ class DataSourceEc2(sources.DataSource):
         # 'root': '/dev/sda1'}
         found = None
         bdm = self.metadata['block-device-mapping']
+        if not isinstance(bdm, dict):
+            LOG.debug("block-device-mapping not a dictionary: '%s'", bdm)
+            return None
+
         for (entname, device) in bdm.items():
             if entname == name:
                 found = device
@@ -200,6 +213,127 @@ class DataSourceEc2(sources.DataSource):
             return az[:-1]
         return None
 
+    @property
+    def cloud_platform(self):
+        if self._cloud_platform is None:
+            self._cloud_platform = identify_platform()
+        return self._cloud_platform
+
+    def activate(self, cfg, is_new_instance):
+        if not is_new_instance:
+            return
+        if self.cloud_platform == Platforms.UNKNOWN:
+            warn_if_necessary(
+                util.get_cfg_by_path(cfg, STRICT_ID_PATH, STRICT_ID_DEFAULT),
+                cfg)
+
+
+def read_strict_mode(cfgval, default):
+    try:
+        return parse_strict_mode(cfgval)
+    except ValueError as e:
+        LOG.warn(e)
+        return default
+
+
+def parse_strict_mode(cfgval):
+    # given a mode like:
+    #    true, false, warn,[sleep]
+    # return tuple with string mode (true|false|warn) and sleep.
+    if cfgval is True:
+        return 'true', None
+    if cfgval is False:
+        return 'false', None
+
+    if not cfgval:
+        return 'warn', 0
+
+    mode, _, sleep = cfgval.partition(",")
+    if mode not in ('true', 'false', 'warn'):
+        raise ValueError(
+            "Invalid mode '%s' in strict_id setting '%s': "
+            "Expected one of 'true', 'false', 'warn'." % (mode, cfgval))
+
+    if sleep:
+        try:
+            sleep = int(sleep)
+        except ValueError:
+            raise ValueError("Invalid sleep '%s' in strict_id setting '%s': "
+                             "not an integer" % (sleep, cfgval))
+    else:
+        sleep = None
+
+    return mode, sleep
+
+
+def warn_if_necessary(cfgval, cfg):
+    try:
+        mode, sleep = parse_strict_mode(cfgval)
+    except ValueError as e:
+        LOG.warn(e)
+        return
+
+    if mode == "false":
+        return
+
+    warnings.show_warning('non_ec2_md', cfg, mode=True, sleep=sleep)
+
+
+def identify_aws(data):
+    # data is a dictionary returned by _collect_platform_data.
+    if (data['uuid'].startswith('ec2') and
+            (data['uuid_source'] == 'hypervisor' or
+             data['uuid'] == data['serial'])):
+            return Platforms.AWS
+
+    return None
+
+
+def identify_brightbox(data):
+    if data['serial'].endswith('brightbox.com'):
+        return Platforms.BRIGHTBOX
+
+
+def identify_platform():
+    # identify the platform and return an entry in Platforms.
+    data = _collect_platform_data()
+    checks = (identify_aws, identify_brightbox, lambda x: Platforms.UNKNOWN)
+    for checker in checks:
+        try:
+            result = checker(data)
+            if result:
+                return result
+        except Exception as e:
+            LOG.warn("calling %s with %s raised exception: %s",
+                     checker, data, e)
+
+
+def _collect_platform_data():
+    # returns a dictionary with all lower case values:
+    #   uuid: system-uuid from dmi or /sys/hypervisor
+    #   uuid_source: 'hypervisor' (/sys/hypervisor/uuid) or 'dmi'
+    #   serial: dmi 'system-serial-number' (/sys/.../product_serial)
+    data = {}
+    try:
+        uuid = util.load_file("/sys/hypervisor/uuid").strip()
+        data['uuid_source'] = 'hypervisor'
+    except Exception:
+        uuid = util.read_dmi_data('system-uuid')
+        data['uuid_source'] = 'dmi'
+
+    if uuid is None:
+        uuid = ''
+    data['uuid'] = uuid.lower()
+
+    serial = util.read_dmi_data('system-serial-number')
+    if serial is None:
+        serial = ''
+
+    data['serial'] = serial.lower()
+
+    return data
+
+
 # Used to match classes to dependencies
 datasources = [
     (DataSourceEc2, (sources.DEP_FILESYSTEM, sources.DEP_NETWORK)),
@@ -209,3 +343,5 @@ datasources = [
 # Return a list of data sources that match this set of dependencies
 def get_datasource_list(depends):
     return sources.list_from_depends(depends, datasources)
+
+# vi: ts=4 expandtab

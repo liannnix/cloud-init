@@ -1,28 +1,44 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2009-2010 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2009-2010 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
-# Ensure this is aliased to a name not 'distros'
-# since the module attribute 'distros'
-# is a list of distros that are supported, not a sub-module
-from cloudinit import distros as ds
+"""
+Byobu
+-----
+**Summary:** enable/disable byobu system wide and for default user
 
+This module controls whether byobu is enabled or disabled system wide and for
+the default system user. If byobu is to be enabled, this module will ensure it
+is installed. Likewise, if it is to be disabled, it will be removed if
+installed.
+
+Valid configuration options for this module are:
+
+  - ``enable-system``: enable byobu system wide
+  - ``enable-user``: enable byobu for the default user
+  - ``disable-system``: disable byobu system wide
+  - ``disable-user``: disable byobu for the default user
+  - ``enable``: enable byobu both system wide and for default user
+  - ``disable``: disable byobu for all users
+  - ``user``: alias for ``enable-user``
+  - ``system``: alias for ``enable-system``
+
+**Internal name:** ``cc_byobu``
+
+**Module frequency:** per instance
+
+**Supported distros:** ubuntu, debian
+
+**Config keys**::
+
+    byobu_by_default: <user/system>
+"""
+
+from cloudinit.distros import ug_util
 from cloudinit import util
 
 distros = ['ubuntu', 'debian']
@@ -61,8 +77,8 @@ def handle(name, cfg, cloud, log, args):
 
     shcmd = ""
     if mod_user:
-        (users, _groups) = ds.normalize_users_groups(cfg, cloud.distro)
-        (user, _user_config) = ds.extract_default(users)
+        (users, _groups) = ug_util.normalize_users_groups(cfg, cloud.distro)
+        (user, _user_config) = ug_util.extract_default(users)
         if not user:
             log.warn(("No default byobu user provided, "
                       "can not launch %s for the default user"), bl_inst)
@@ -78,3 +94,5 @@ def handle(name, cfg, cloud, log, args):
         cmd = ["/bin/sh", "-c", "%s %s %s" % ("X=0;", shcmd, "exit $X")]
         log.debug("Setting byobu to %s", value)
         util.subp(cmd, capture=False)
+
+# vi: ts=4 expandtab

@@ -1,3 +1,5 @@
+# This file is part of cloud-init. See LICENSE file for license information.
+
 from cloudinit import cloud
 from cloudinit.config import cc_growpart
 from cloudinit import util
@@ -81,11 +83,11 @@ class TestConfig(TestCase):
         self.cloud = cloud.Cloud(None, self.paths, None, None, None)
         self.log = logging.getLogger("TestConfig")
         self.args = []
-        os.environ = {}
 
         self.cloud_init = None
         self.handle = cc_growpart.handle
 
+    @mock.patch.dict("os.environ", clear=True)
     def test_no_resizers_auto_is_fine(self):
         with mock.patch.object(
                 util, 'subp',
@@ -98,6 +100,7 @@ class TestConfig(TestCase):
             mockobj.assert_called_once_with(
                 ['growpart', '--help'], env={'LANG': 'C'})
 
+    @mock.patch.dict("os.environ", clear=True)
     def test_no_resizers_mode_growpart_is_exception(self):
         with mock.patch.object(
                 util, 'subp',
@@ -110,6 +113,7 @@ class TestConfig(TestCase):
             mockobj.assert_called_once_with(
                 ['growpart', '--help'], env={'LANG': 'C'})
 
+    @mock.patch.dict("os.environ", clear=True)
     def test_mode_auto_prefers_growpart(self):
         with mock.patch.object(
                 util, 'subp',

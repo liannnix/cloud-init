@@ -1,20 +1,33 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2011 Canonical Ltd.
 #
-#    Copyright (C) 2011 Canonical Ltd.
+# Author: Ben Howard <ben.howard@canonical.com>
 #
-#    Author: Ben Howard <ben.howard@canonical.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Apt Pipelining
+--------------
+**Summary:** configure apt pipelining
+
+This module configures apt's ``Acquite::http::Pipeline-Depth`` option, whcih
+controls how apt handles HTTP pipelining. It may be useful for pipelining to be
+disabled, because some web servers, such as S3 do not pipeline properly (LP:
+#948461). The ``apt_pipelining`` config key may be set to ``false`` to disable
+pipelining altogether. This is the default behavior. If it is set to ``none``,
+``unchanged``, or ``os``, no change will be made to apt configuration and the
+default setting for the distro will be used. The pipeline depth can also be
+manually specified by setting ``apt_pipelining`` to a number. However, this is
+not recommended.
+
+**Internal name:** ``cc_apt_pipelining``
+
+**Module frequency:** per instance
+
+**Supported distros:** ubuntu, debian
+
+**Config keys**::
+    apt_pipelining: <false/none/unchanged/os/number>
+"""
 
 from cloudinit.settings import PER_INSTANCE
 from cloudinit import util
@@ -55,3 +68,5 @@ def write_apt_snippet(setting, log, f_name):
     file_contents = APT_PIPE_TPL % (setting)
     util.write_file(f_name, file_contents)
     log.debug("Wrote %s with apt pipeline depth setting %s", f_name, setting)
+
+# vi: ts=4 expandtab

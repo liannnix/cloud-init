@@ -1,22 +1,66 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2009-2010 Canonical Ltd.
+# Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
 #
-#    Copyright (C) 2009-2010 Canonical Ltd.
-#    Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
+# Author: Scott Moser <scott.moser@canonical.com>
+# Author: Juerg Haefliger <juerg.haefliger@hp.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#    Author: Juerg Haefliger <juerg.haefliger@hp.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Mounts
+------
+**Summary:** configure mount points and swap files
+
+This module can add or remove mountpoints from ``/etc/fstab`` as well as
+configure swap. The ``mounts`` config key takes a list of fstab entries to add.
+Each entry is specified as a list of ``[ fs_spec, fs_file, fs_vfstype,
+fs_mntops, fs-freq, fs_passno ]``. For more information on these options,
+consult the manual for ``/etc/fstab``. When specifying the ``fs_spec``, if the
+device name starts with one of ``xvd``, ``sd``, ``hd``, or ``vd``, the leading
+``/dev`` may be omitted.
+
+In order to remove a previously listed mount, an entry can be added to the
+mounts list containing ``fs_spec`` for the device to be removed but no
+mountpoint (i.e. ``[ sda1 ]`` or ``[ sda1, null ]``).
+
+The ``mount_default_fields`` config key allows default options to be specified
+for the values in a ``mounts`` entry that are not specified, aside from the
+``fs_spec`` and the ``fs_file``. If specified, this must be a list containing 7
+values. It defaults to::
+
+    mount_default_fields: [none, none, "auto", "defaults,nobootwait", "0", "2"]
+
+On a systemd booted system that default is the mostly equivalent::
+
+    mount_default_fields: [none, none, "auto",
+       "defaults,nofail,x-systemd.requires=cloud-init.service", "0", "2"]
+
+Note that `nobootwait` is an upstart specific boot option that somewhat
+equates to the more standard `nofail`.
+
+Swap files can be configured by setting the path to the swap file to create
+with ``filename``, the size of the swap file with ``size`` maximum size of
+the swap file if using an ``size: auto`` with ``maxsize``. By default no
+swap file is created.
+
+**Internal name:** ``cc_mounts``
+
+**Module frequency:** per instance
+
+**Supported distros:** all
+
+**Config keys**::
+
+    mounts:
+        - [ /dev/ephemeral0, /mnt, auto, "defaults,noexec" ]
+        - [ sdc, /opt/data ]
+        - [ xvdh, /opt/data, "auto", "defaults,nofail", "0", "0" ]
+    mount_default_fields: [None, None, "auto", "defaults,nofail", "0", "2"]
+    swap:
+        filename: <file>
+        size: <"auto"/size in bytes>
+        maxsize: <size in bytes>
+"""
 
 from string import whitespace
 
@@ -264,8 +308,9 @@ def handle_swapcfg(swapcfg):
 def handle(_name, cfg, cloud, log, _args):
     # fs_spec, fs_file, fs_vfstype, fs_mntops, fs-freq, fs_passno
     def_mnt_opts = "defaults,nobootwait"
-    if cloud.distro.uses_systemd():
-        def_mnt_opts = "defaults,nofail"
+    uses_systemd = cloud.distro.uses_systemd()
+    if uses_systemd:
+        def_mnt_opts = "defaults,nofail,x-systemd.requires=cloud-init.service"
 
     defvals = [None, None, "auto", def_mnt_opts, "0", "2"]
     defvals = cfg.get("mount_default_fields", defvals)
@@ -277,6 +322,8 @@ def handle(_name, cfg, cloud, log, _args):
     cfgmnt = []
     if "mounts" in cfg:
         cfgmnt = cfg["mounts"]
+
+    LOG.debug("mounts configuration is %s", cfgmnt)
 
     for i in range(len(cfgmnt)):
         # skip something that wasn't a list
@@ -374,24 +421,16 @@ def handle(_name, cfg, cloud, log, _args):
         cc_lines.append('\t'.join(line))
 
     fstab_lines = []
+    removed = []
     for line in util.load_file(FSTAB_PATH).splitlines():
         try:
             toks = WS.split(line)
             if toks[3].find(comment) != -1:
+                removed.append(line)
                 continue
         except Exception:
             pass
         fstab_lines.append(line)
-
-    fstab_lines.extend(cc_lines)
-    contents = "%s\n" % ('\n'.join(fstab_lines))
-    util.write_file(FSTAB_PATH, contents)
-
-    if needswap:
-        try:
-            util.subp(("swapon", "-a"))
-        except Exception:
-            util.logexc(log, "Activating swap via 'swapon -a' failed")
 
     for d in dirs:
         try:
@@ -399,7 +438,36 @@ def handle(_name, cfg, cloud, log, _args):
         except Exception:
             util.logexc(log, "Failed to make '%s' config-mount", d)
 
-    try:
-        util.subp(("mount", "-a"))
-    except Exception:
-        util.logexc(log, "Activating mounts via 'mount -a' failed")
+    sadds = [WS.sub(" ", n) for n in cc_lines]
+    sdrops = [WS.sub(" ", n) for n in removed]
+
+    sops = (["- " + drop for drop in sdrops if drop not in sadds] +
+            ["+ " + add for add in sadds if add not in sdrops])
+
+    fstab_lines.extend(cc_lines)
+    contents = "%s\n" % ('\n'.join(fstab_lines))
+    util.write_file(FSTAB_PATH, contents)
+
+    activate_cmds = []
+    if needswap:
+        activate_cmds.append(["swapon", "-a"])
+
+    if len(sops) == 0:
+        log.debug("No changes to /etc/fstab made.")
+    else:
+        log.debug("Changes to fstab: %s", sops)
+        activate_cmds.append(["mount", "-a"])
+        if uses_systemd:
+            activate_cmds.append(["systemctl", "daemon-reload"])
+
+    fmt = "Activating swap and mounts with: %s"
+    for cmd in activate_cmds:
+        fmt = "Activate mounts: %s:" + ' '.join(cmd)
+        try:
+            util.subp(cmd)
+            log.debug(fmt, "PASS")
+        except util.ProcessExecutionError:
+            log.warn(fmt, "FAIL")
+            util.logexc(log, fmt, "FAIL")
+
+# vi: ts=4 expandtab

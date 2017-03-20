@@ -1,39 +1,40 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2015 Canonical Ltd.
 #
-#    Copyright (C) 2015 Canonical Ltd.
+# Author: Scott Moser <scott.moser@canonical.com>
 #
-#    Author: Scott Moser <scott.moser@canonical.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
 """
-fan module allows configuration of Ubuntu Fan
-  https://wiki.ubuntu.com/FanNetworking
+Fan
+---
+**Summary:** configure ubuntu fan networking
 
-Example config:
-  #cloud-config
-  fan:
-    config: |
-      # fan 240
-      10.0.0.0/8 eth0/16 dhcp
-      10.0.0.0/8 eth1/16 dhcp off
-      # fan 241
-      241.0.0.0/8 eth0/16 dhcp
-    config_path: /etc/network/fan
+This module installs, configures and starts the ubuntu fan network system. For
+more information about Ubuntu Fan, see:
+``https://wiki.ubuntu.com/FanNetworking``.
 
-If cloud-init sees a 'fan' entry in cloud-config it will
- a.) write 'config_path' with the contents
- b.) install the package 'ubuntu-fan' if it is not installed
- c.) ensure the service is started (or restarted if was previously running)
+If cloud-init sees a ``fan`` entry in cloud-config it will:
+
+    - write ``config_path`` with the contents of the ``config`` key
+    - install the package ``ubuntu-fan`` if it is not installed
+    - ensure the service is started (or restarted if was previously running)
+
+**Internal name:** ``cc_fan``
+
+**Module frequency:** per instance
+
+**Supported distros:** ubuntu
+
+**Config keys**::
+
+    fan:
+        config: |
+            # fan 240
+            10.0.0.0/8 eth0/16 dhcp
+            10.0.0.0/8 eth1/16 dhcp off
+            # fan 241
+            241.0.0.0/8 eth0/16 dhcp
+        config_path: /etc/network/fan
 """
 
 from cloudinit import log as logging
@@ -99,3 +100,5 @@ def handle(name, cfg, cloud, log, args):
     stop_update_start(
         service='ubuntu-fan', config_file=mycfg.get('config_path'),
         content=mycfg.get('config'), systemd=distro.uses_systemd())
+
+# vi: ts=4 expandtab

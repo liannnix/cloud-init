@@ -1,23 +1,63 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2013 Yahoo! Inc.
+# Copyright (C) 2014 Canonical, Ltd
 #
-#    Copyright (C) 2013 Yahoo! Inc.
-#    Copyright (C) 2014 Canonical, Ltd
+# Author: Joshua Harlow <harlowja@yahoo-inc.com>
+# Author: Dustin Kirkland <kirkland@ubuntu.com>
+# Author: Scott Moser <scott.moser@canonical.com>
 #
-#    Author: Joshua Harlow <harlowja@yahoo-inc.com>
-#    Author: Dustin Kirkland <kirkland@ubuntu.com>
-#    Author: Scott Moser <scott.moser@canonical.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
+
+"""
+Seed Random
+-----------
+**Summary:** provide random seed data
+
+Since all cloud instances started from the same image will produce very similar
+data when they are first booted, as they are all starting with the same seed
+for the kernel's entropy keyring. To avoid this, random seed data can be
+provided to the instance either as a string or by specifying a command to run
+to generate the data.
+
+Configuration for this module is under the ``random_seed`` config key. The
+``file`` key specifies the path to write the data to, defaulting to
+``/dev/urandom``. Data can be passed in directly with ``data``, and may
+optionally be specified in encoded form, with the encoding specified in
+``encoding``.
+
+.. note::
+    when using a multiline value for ``data`` or specifying binary data, be
+    sure to follow yaml syntax and use the ``|`` and ``!binary`` yaml format
+    specifiers when appropriate
+
+Instead of specifying a data string, a command can be run to generate/collect
+the data to be written. The command should be specified as a list of args in
+the ``command`` key. If a command is specified that cannot be run, no error
+will be reported unless ``command_required`` is set to true.
+
+For example, to use ``pollinate`` to gather data from a
+remote entropy server and write it to ``/dev/urandom``, the following could be
+used::
+
+    random_seed:
+        file: /dev/urandom
+        command: ["pollinate", "--server=http://local.polinate.server"]
+        command_required: true
+
+**Internal name:** ``cc_seed_random``
+
+**Module frequency:** per instance
+
+**Supported distros:** all
+
+**Config keys**::
+
+    random_seed:
+        file: <file>
+        data: <random string>
+        encoding: <raw/base64/b64/gzip/gz>
+        command: [<cmd name>, <arg1>, <arg2>...]
+        command_required: <true/false>
+"""
 
 import base64
 import os
@@ -92,3 +132,5 @@ def handle(name, cfg, cloud, log, _args):
     except ValueError as e:
         log.warn("handling random command [%s] failed: %s", command, e)
         raise e
+
+# vi: ts=4 expandtab

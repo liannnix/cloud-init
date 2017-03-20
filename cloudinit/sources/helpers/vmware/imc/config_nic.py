@@ -1,21 +1,9 @@
-# vi: ts=4 expandtab
+# Copyright (C) 2015 Canonical Ltd.
+# Copyright (C) 2016 VMware INC.
 #
-#    Copyright (C) 2015 Canonical Ltd.
-#    Copyright (C) 2016 VMware INC.
+# Author: Sankar Tanguturi <stanguturi@vmware.com>
 #
-#    Author: Sankar Tanguturi <stanguturi@vmware.com>
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License version 3, as
-#    published by the Free Software Foundation.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# This file is part of cloud-init. See LICENSE file for license information.
 
 import logging
 import os
@@ -113,7 +101,11 @@ class NicConfigurator(object):
             return lines
 
         # Static Ipv4
-        v4 = nic.staticIpv4
+        addrs = nic.staticIpv4
+        if not addrs:
+            return lines
+
+        v4 = addrs[0]
         if v4.ip:
             lines.append('    address %s' % v4.ip)
         if v4.netmask:
@@ -209,22 +201,6 @@ class NicConfigurator(object):
         util.subp(["pkill", "dhclient"], rcs=[0, 1])
         util.subp(["rm", "-f", "/var/lib/dhcp/*"])
 
-    def if_down_up(self):
-        names = []
-        for nic in self.nics:
-            name = self.mac2Name.get(nic.mac.lower())
-            names.append(name)
-
-        for name in names:
-            logger.info('Bring down interface %s' % name)
-            util.subp(["ifdown", "%s" % name])
-
-        self.clear_dhcp()
-
-        for name in names:
-            logger.info('Bring up interface %s' % name)
-            util.subp(["ifup", "%s" % name])
-
     def configure(self):
         """
         Configure the /etc/network/intefaces
@@ -244,4 +220,6 @@ class NicConfigurator(object):
             for line in lines:
                 fp.write('%s\n' % line)
 
-        self.if_down_up()
+        self.clear_dhcp()
+
+# vi: ts=4 expandtab
