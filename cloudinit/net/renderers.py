@@ -3,13 +3,15 @@
 from . import eni
 from . import RendererNotFoundError
 from . import sysconfig
+from . import etcnet
 
 NAME_TO_RENDERER = {
     "eni": eni,
     "sysconfig": sysconfig,
+    "etcnet": etcnet,
 }
 
-DEFAULT_PRIORITY = ["eni", "sysconfig"]
+DEFAULT_PRIORITY = ["eni", "sysconfig", "etcnet"]
 
 
 def search(priority=None, target=None, first=False):

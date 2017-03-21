@@ -25,6 +25,35 @@ def _make_sysconfig_bool(val):
     else:
         return 'no'
 
+def ipv4mask2cidr(mask):
+    if '.' not in mask:
+        return mask
+    return sum([bin(int(x)).count('1') for x in mask.split('.')])
+
+
+def ipv6mask2cidr(mask):
+    if ':' not in mask:
+        return mask
+
+    bitCount = [0, 0x8000, 0xc000, 0xe000, 0xf000, 0xf800, 0xfc00, 0xfe00,
+                0xff00, 0xff80, 0xffc0, 0xffe0, 0xfff0, 0xfff8, 0xfffc,
+                0xfffe, 0xffff]
+    cidr = 0
+    for word in mask.split(':'):
+        if not word or int(word, 16) == 0:
+            break
+        cidr += bitCount.index(int(word, 16))
+
+    return cidr
+
+def mask2cidr(mask):
+    if ':' in mask:
+        return ipv6mask2cidr(mask)
+    elif '.' in mask:
+        return ipv4mask2cidr(mask)
+    else:
+        return mask
+
 class Distro(distros.Distro):
     clock_conf_fn = '/etc/sysconfig/clock'
     locale_conf_fn = '/etc/sysconfig/i18n'
@@ -32,11 +61,11 @@ class Distro(distros.Distro):
     network_conf_fn = "/etc/sysconfig/network"
     hostname_conf_fn = "/etc/sysconfig/network"
     systemd_hostname_conf_fn = "/etc/hostname"
-    network_script_tpl = '/etc/net/ifaces/%s/options'
-    network_script_tpl2 = '/etc/net/ifaces/%s/ipv4address'
-    network_script_tpl3 = '/etc/net/ifaces/%s/ipv4route'
-    network_script_tpl4 = '/etc/net/ifaces/%s/ipv6address'
-    network_script_tpl5 = '/etc/net/ifaces/%s/ipv6route'
+    ifaces_options_tpl = '/etc/net/ifaces/%s/options'
+    ifaces_ipv4addres_tpl = '/etc/net/ifaces/%s/ipv4address'
+    ifaces_ipv4route_tpl = '/etc/net/ifaces/%s/ipv4route'
+    ifaces_ipv6address_tpl = '/etc/net/ifaces/%s/ipv6address'
+    ifaces_ipv6route_tpl = '/etc/net/ifaces/%s/ipv6route'
     resolve_conf_fn = '/etc/net/ifaces/%s/resolv.conf'
     tz_local_fn = '/etc/localtime'
     init_cmd = ['service']
@@ -53,48 +82,52 @@ class Distro(distros.Distro):
     def install_packages(self, pkglist):
         self.package_command('install', pkgs=pkglist)
 
+    def _write_network_config(self, netconfig):
+        return self._supported_write_network_config(netconfig)
+
     def _write_network(self, settings):
         # Convert debian settings to ifcfg format
         entries = net_util.translate_network(settings)
         LOG.debug("Translated ubuntu style network settings %s into %s",
                   settings, entries)
+        dev_names = entries.keys()
         # Make the intermediate format as the suse format...
         nameservers = []
         searchservers = []
         dev_names = entries.keys()
         use_ipv6 = False
         for (dev, info) in entries.items():
-            net_fn = self.network_script_tpl % (dev)
-            net_cfg = {
+            ifaces_options_fn = self.ifaces_options_tpl % (dev)
+            ifaces_options_cfg = {
                 'BOOTPROTO': info.get('bootproto'),
                 'ONBOOT': _make_sysconfig_bool(info.get('auto')),
             }
-            net_fn2 = self.network_script_tpl2 % (dev)
-            net_cfg2 = {
-                '%s/%s' % (info.get('address'), sum([bin(int(x)).count('1') for x in info.get('netmask').split('.')])),
+            ifaces_ipv4addres_fn = self.ifaces_ipv4addres_tpl % (dev)
+            ifaces_ipv4addres_cfg = {
+                '%s/%s' % (info.get('address'), mask2cidr(info.get('netmask'))),
             }
-            net_fn3 = self.network_script_tpl3 % (dev)
-            net_cfg3 = {
+            ifaces_ipv4route_fn = self.ifaces_ipv4route_tpl % (dev)
+            ifaces_ipv4route_cfg = {
                 'default via ' + info.get('gateway'),
             }
             if info.get('inet6'):
                 use_ipv6 = True
-                net_cfg.update({
+                ifaces_options_cfg.update({
                     'CONFIG_IPV6': _make_sysconfig_bool(True),
                 })
-                net_fn4 = self.network_script_tpl4 % (dev)
-                net_cfg4 = {
+                ifaces_ipv6address_fn = self.ifaces_ipv6address_tpl % (dev)
+                ifaces_ipv6address_cfg = {
                      '%s' % info.get('ipv6').get('address'),
                 }
-                net_fn5 = self.network_script_tpl5 % (dev)
-                net_cfg5 = {
+                ifaces_ipv6route_fn = self.ifaces_ipv6route_tpl % (dev)
+                ifaces_ipv6route_cfg = {
                      'default via ' + info.get('ipv6').get('gateway'),
                 }
-            rhel_util.update_sysconfig_file(net_fn, net_cfg, True)
-            rhel_util.update_sysconfig_file(net_fn2, net_cfg2, True)
-            rhel_util.update_sysconfig_file(net_fn3, net_cfg3, True)
-            rhel_util.update_sysconfig_file(net_fn4, net_cfg4, True)
-            rhel_util.update_sysconfig_file(net_fn5, net_cfg5, True)
+            rhel_util.update_sysconfig_file(ifaces_ipv4addres_fn, ifaces_options_cfg, True)
+            util.write_file(ifaces_ipv4addres_fn, ifaces_ipv4addres_cfg)
+            util.write_file(ifaces_ipv4route_fn, ifaces_ipv4route_cfg)
+            rhel_util.update_sysconfig_file(ifaces_ipv6address_fn, ifaces_ipv6address_cfg)
+            util.write_file(ifaces_ipv6route_fn, ifaces_ipv6route_cfg)
             if 'dns-nameservers' in info:
                 nameservers.extend(info['dns-nameservers'])
             if 'dns-search' in info:
@@ -102,6 +135,7 @@ class Distro(distros.Distro):
         if nameservers or searchservers:
             rhel_util.update_resolve_conf_file(self.resolve_conf_fn,
                                                nameservers, searchservers)
+
         return dev_names
 
     def apply_locale(self, locale, out_fn=None):
@@ -203,4 +237,5 @@ class Distro(distros.Distro):
     def update_package_sources(self):
         self._runner.run("update-sources", self.package_command,
                          ["update"], freq=PER_INSTANCE)
+
 
