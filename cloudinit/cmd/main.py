@@ -3,10 +3,12 @@
 # Copyright (C) 2012 Canonical Ltd.
 # Copyright (C) 2012 Hewlett-Packard Development Company, L.P.
 # Copyright (C) 2012 Yahoo! Inc.
+# Copyright (C) 2017 Amazon.com, Inc. or its affiliates
 #
 # Author: Scott Moser <scott.moser@canonical.com>
 # Author: Juerg Haefliger <juerg.haefliger@hp.com>
 # Author: Joshua Harlow <harlowja@yahoo-inc.com>
+# Author: Andrew Jorgensen <ajorgens@amazon.com>
 #
 # This file is part of cloud-init. See LICENSE file for license information.
 
@@ -25,7 +27,6 @@ from cloudinit import netinfo
 from cloudinit import signal_handler
 from cloudinit import sources
 from cloudinit import stages
-from cloudinit import templater
 from cloudinit import url_helper
 from cloudinit import util
 from cloudinit import version
@@ -39,22 +40,16 @@ from cloudinit.settings import (PER_INSTANCE, PER_ALWAYS, PER_ONCE,
 
 from cloudinit import atomic_helper
 
+from cloudinit.config import cc_set_hostname
 from cloudinit.dhclient_hook import LogDhclient
 
 
-# Pretty little cheetah formatted welcome message template
-WELCOME_MSG_TPL = ("Cloud-init v. ${version} running '${action}' at "
-                   "${timestamp}. Up ${uptime} seconds.")
+# Welcome message template
+WELCOME_MSG_TPL = ("Cloud-init v. {version} running '{action}' at "
+                   "{timestamp}. Up {uptime} seconds.")
 
 # Module section template
 MOD_SECTION_TPL = "cloud_%s_modules"
-
-# Things u can query on
-QUERY_DATA_TYPES = [
-    'data',
-    'data_raw',
-    'instance_id',
-]
 
 # Frequency shortname to full name
 # (so users don't have to remember the full name...)
@@ -88,13 +83,11 @@ def welcome(action, msg=None):
 
 
 def welcome_format(action):
-    tpl_params = {
-        'version': version.version_string(),
-        'uptime': util.uptime(),
-        'timestamp': util.time_rfc2822(),
-        'action': action,
-    }
-    return templater.render_string(WELCOME_MSG_TPL, tpl_params)
+    return WELCOME_MSG_TPL.format(
+        version=version.version_string(),
+        uptime=util.uptime(),
+        timestamp=util.time_rfc2822(),
+        action=action)
 
 
 def extract_fns(args):
@@ -194,7 +187,7 @@ def attempt_cmdline_url(path, network=True, cmdline=None):
     data = None
     header = b'#cloud-config'
     try:
-        resp = util.read_file_or_url(**kwargs)
+        resp = url_helper.read_file_or_url(**kwargs)
         if resp.ok():
             data = resp.contents
             if not resp.contents.startswith(header):
@@ -223,12 +216,10 @@ def main_init(name, args):
     if args.local:
         deps = [sources.DEP_FILESYSTEM]
 
-    early_logs = []
-    early_logs.append(
-        attempt_cmdline_url(
-            path=os.path.join("%s.d" % CLOUD_CONFIG,
-                              "91_kernel_cmdline_url.cfg"),
-            network=not args.local))
+    early_logs = [attempt_cmdline_url(
+        path=os.path.join("%s.d" % CLOUD_CONFIG,
+                          "91_kernel_cmdline_url.cfg"),
+        network=not args.local)]
 
     # Cloud-init 'init' stage is broken up into the following sub-stages
     # 1. Ensure that the init object fetches its config without errors
@@ -324,7 +315,7 @@ def main_init(name, args):
                 existing = "trust"
 
         init.purge_cache()
-        # Delete the non-net file as well
+        # Delete the no-net file as well
         util.del_file(os.path.join(path_helper.get_cpath("data"), "no-net"))
 
     # Stage 5
@@ -348,7 +339,7 @@ def main_init(name, args):
                               " Likely bad things to come!"))
         if not args.force:
             init.apply_network_config(bring_up=not args.local)
-            LOG.debug("[%s] Exiting without datasource in local mode", mode)
+            LOG.debug("[%s] Exiting without datasource", mode)
             if mode == sources.DSMODE_LOCAL:
                 return (None, [])
             else:
@@ -357,11 +348,17 @@ def main_init(name, args):
             LOG.debug("[%s] barreling on in force mode without datasource",
                       mode)
 
+    _maybe_persist_instance_data(init)
     # Stage 6
     iid = init.instancify()
     LOG.debug("[%s] %s will now be targeting instance id: %s. new=%s",
               mode, name, iid, init.is_new_instance())
 
+    if mode == sources.DSMODE_LOCAL:
+        # Before network comes up, set any configured hostname to allow
+        # dhcp clients to advertize this hostname to any DDNS services
+        # LP: #1746455.
+        _maybe_set_hostname(init, stage='local', retry_stage='network')
     init.apply_network_config(bring_up=bool(mode != sources.DSMODE_LOCAL))
 
     if mode == sources.DSMODE_LOCAL:
@@ -373,8 +370,12 @@ def main_init(name, args):
             LOG.debug("[%s] %s is in local mode, will apply init modules now.",
                       mode, init.datasource)
 
+    # Give the datasource a chance to use network resources.
+    # This is used on Azure to communicate with the fabric over network.
+    init.setup_datasource()
     # update fully realizes user-data (pulling in #include if necessary)
     init.update()
+    _maybe_set_hostname(init, stage='init-net', retry_stage='modules:config')
     # Stage 7
     try:
         # Attempt to consume the data per instance.
@@ -405,7 +406,8 @@ def main_init(name, args):
         errfmt_orig = errfmt
         (outfmt, errfmt) = util.get_output_cfg(mods.cfg, name)
         if outfmt_orig != outfmt or errfmt_orig != errfmt:
-            LOG.warn("Stdout, stderr changing to (%s, %s)", outfmt, errfmt)
+            LOG.warning("Stdout, stderr changing to (%s, %s)",
+                        outfmt, errfmt)
             (outfmt, errfmt) = util.fixup_output(mods.cfg, name)
     except Exception:
         util.logexc(LOG, "Failed to re-adjust output redirection!")
@@ -425,17 +427,23 @@ def di_report_warn(datasource, cfg):
         LOG.debug("no di_report found in config.")
         return
 
-    dicfg = cfg.get('di_report', {})
+    dicfg = cfg['di_report']
+    if dicfg is None:
+        # ds-identify may write 'di_report:\n #comment\n'
+        # which reads as {'di_report': None}
+        LOG.debug("di_report was None.")
+        return
+
     if not isinstance(dicfg, dict):
-        LOG.warn("di_report config not a dictionary: %s", dicfg)
+        LOG.warning("di_report config not a dictionary: %s", dicfg)
         return
 
     dslist = dicfg.get('datasource_list')
     if dslist is None:
-        LOG.warn("no 'datasource_list' found in di_report.")
+        LOG.warning("no 'datasource_list' found in di_report.")
         return
     elif not isinstance(dslist, list):
-        LOG.warn("di_report/datasource_list not a list: %s", dslist)
+        LOG.warning("di_report/datasource_list not a list: %s", dslist)
         return
 
     # ds.__module__ is like cloudinit.sources.DataSourceName
@@ -444,8 +452,8 @@ def di_report_warn(datasource, cfg):
     if modname.startswith(sources.DS_PREFIX):
         modname = modname[len(sources.DS_PREFIX):]
     else:
-        LOG.warn("Datasource '%s' came from unexpected module '%s'.",
-                 datasource, modname)
+        LOG.warning("Datasource '%s' came from unexpected module '%s'.",
+                    datasource, modname)
 
     if modname in dslist:
         LOG.debug("used datasource '%s' from '%s' was in di_report's list: %s",
@@ -483,6 +491,7 @@ def main_modules(action_name, args):
         print_exc(msg)
         if not args.force:
             return [(msg)]
+    _maybe_persist_instance_data(init)
     # Stage 3
     mods = stages.Modules(init, extract_fns(args), reporter=args.reporter)
     # Stage 4
@@ -505,11 +514,6 @@ def main_modules(action_name, args):
 
     # Stage 5
     return run_module_section(mods, name, name)
-
-
-def main_query(name, _args):
-    raise NotImplementedError(("Action '%s' is not"
-                               " currently implemented") % (name))
 
 
 def main_single(name, args):
@@ -539,6 +543,7 @@ def main_single(name, args):
                    " likely bad things to come!"))
         if not args.force:
             return 1
+    _maybe_persist_instance_data(init)
     # Stage 3
     mods = stages.Modules(init, extract_fns(args), reporter=args.reporter)
     mod_args = args.module_args
@@ -571,10 +576,10 @@ def main_single(name, args):
                                             mod_args,
                                             mod_freq)
     if failures:
-        LOG.warn("Ran %s but it failed!", mod_name)
+        LOG.warning("Ran %s but it failed!", mod_name)
         return 1
     elif not which_ran:
-        LOG.warn("Did not run %s, does it exist?", mod_name)
+        LOG.warning("Did not run %s, does it exist?", mod_name)
         return 1
     else:
         # Guess it worked
@@ -612,7 +617,11 @@ def status_wrapper(name, args, data_d=None, link_d=None):
     else:
         raise ValueError("unknown name: %s" % name)
 
-    modes = ('init', 'init-local', 'modules-config', 'modules-final')
+    modes = ('init', 'init-local', 'modules-init', 'modules-config',
+             'modules-final')
+    if mode not in modes:
+        raise ValueError(
+            "Invalid cloud init mode specified '{0}'".format(mode))
 
     status = None
     if mode == 'init-local':
@@ -624,16 +633,18 @@ def status_wrapper(name, args, data_d=None, link_d=None):
         except Exception:
             pass
 
+    nullstatus = {
+        'errors': [],
+        'start': None,
+        'finished': None,
+    }
     if status is None:
-        nullstatus = {
-            'errors': [],
-            'start': None,
-            'finished': None,
-        }
         status = {'v1': {}}
         for m in modes:
             status['v1'][m] = nullstatus.copy()
         status['v1']['datasource'] = None
+    elif mode not in status['v1']:
+        status['v1'][mode] = nullstatus.copy()
 
     v1 = status['v1']
     v1['stage'] = mode
@@ -680,16 +691,42 @@ def status_wrapper(name, args, data_d=None, link_d=None):
     return len(v1[mode]['errors'])
 
 
+def _maybe_persist_instance_data(init):
+    """Write instance-data.json file if absent and datasource is restored."""
+    if init.ds_restored:
+        instance_data_file = os.path.join(
+            init.paths.run_dir, sources.INSTANCE_JSON_FILE)
+        if not os.path.exists(instance_data_file):
+            init.datasource.persist_instance_data()
+
+
+def _maybe_set_hostname(init, stage, retry_stage):
+    """Call set-hostname if metadata, vendordata or userdata provides it.
+
+    @param stage: String representing current stage in which we are running.
+    @param retry_stage: String represented logs upon error setting hostname.
+    """
+    cloud = init.cloudify()
+    (hostname, _fqdn) = util.get_hostname_fqdn(
+        init.cfg, cloud, metadata_only=True)
+    if hostname:  # meta-data or user-data hostname content
+        try:
+            cc_set_hostname.handle('set-hostname', init.cfg, cloud, LOG, None)
+        except cc_set_hostname.SetHostnameError as e:
+            LOG.debug(
+                'Failed setting hostname in %s stage. Will'
+                ' retry in %s stage. Error: %s.', stage, retry_stage, str(e))
+
+
 def main_features(name, args):
     sys.stdout.write('\n'.join(sorted(version.FEATURES)) + '\n')
 
 
 def main(sysv_args=None):
-    if sysv_args is not None:
-        parser = argparse.ArgumentParser(prog=sysv_args[0])
-        sysv_args = sysv_args[1:]
-    else:
-        parser = argparse.ArgumentParser()
+    if not sysv_args:
+        sysv_args = sys.argv
+    parser = argparse.ArgumentParser(prog=sysv_args[0])
+    sysv_args = sysv_args[1:]
 
     # Top level args
     parser.add_argument('--version', '-v', action='version',
@@ -710,7 +747,8 @@ def main(sysv_args=None):
                         default=False)
 
     parser.set_defaults(reporter=None)
-    subparsers = parser.add_subparsers()
+    subparsers = parser.add_subparsers(title='Subcommands', dest='subcommand')
+    subparsers.required = True
 
     # Each action and its sub-options (if any)
     parser_init = subparsers.add_parser('init',
@@ -734,17 +772,6 @@ def main(sysv_args=None):
                             choices=('init', 'config', 'final'))
     parser_mod.set_defaults(action=('modules', main_modules))
 
-    # These settings are used when you want to query information
-    # stored in the cloud-init data objects/directories/files
-    parser_query = subparsers.add_parser('query',
-                                         help=('query information stored '
-                                               'in cloud-init'))
-    parser_query.add_argument("--name", '-n', action="store",
-                              help="item name to query on",
-                              required=True,
-                              choices=QUERY_DATA_TYPES)
-    parser_query.set_defaults(action=('query', main_query))
-
     # This subcommand allows you to run a single module
     parser_single = subparsers.add_parser('single',
                                           help=('run a single module '))
@@ -764,6 +791,10 @@ def main(sysv_args=None):
                                      ' pass to this module'))
     parser_single.set_defaults(action=('single', main_single))
 
+    parser_query = subparsers.add_parser(
+        'query',
+        help='Query standardized instance metadata from the command line.')
+
     parser_dhclient = subparsers.add_parser('dhclient-hook',
                                             help=('run the dhclient hook'
                                                   'to record network info'))
@@ -778,15 +809,63 @@ def main(sysv_args=None):
                                             help=('list defined features'))
     parser_features.set_defaults(action=('features', main_features))
 
+    parser_analyze = subparsers.add_parser(
+        'analyze', help='Devel tool: Analyze cloud-init logs and data')
+
+    parser_devel = subparsers.add_parser(
+        'devel', help='Run development tools')
+
+    parser_collect_logs = subparsers.add_parser(
+        'collect-logs', help='Collect and tar all cloud-init debug info')
+
+    parser_clean = subparsers.add_parser(
+        'clean', help='Remove logs and artifacts so cloud-init can re-run.')
+
+    parser_status = subparsers.add_parser(
+        'status', help='Report cloud-init status or wait on completion.')
+
+    if sysv_args:
+        # Only load subparsers if subcommand is specified to avoid load cost
+        if sysv_args[0] == 'analyze':
+            from cloudinit.analyze.__main__ import get_parser as analyze_parser
+            # Construct analyze subcommand parser
+            analyze_parser(parser_analyze)
+        elif sysv_args[0] == 'devel':
+            from cloudinit.cmd.devel.parser import get_parser as devel_parser
+            # Construct devel subcommand parser
+            devel_parser(parser_devel)
+        elif sysv_args[0] == 'collect-logs':
+            from cloudinit.cmd.devel.logs import (
+                get_parser as logs_parser, handle_collect_logs_args)
+            logs_parser(parser_collect_logs)
+            parser_collect_logs.set_defaults(
+                action=('collect-logs', handle_collect_logs_args))
+        elif sysv_args[0] == 'clean':
+            from cloudinit.cmd.clean import (
+                get_parser as clean_parser, handle_clean_args)
+            clean_parser(parser_clean)
+            parser_clean.set_defaults(
+                action=('clean', handle_clean_args))
+        elif sysv_args[0] == 'query':
+            from cloudinit.cmd.query import (
+                get_parser as query_parser, handle_args as handle_query_args)
+            query_parser(parser_query)
+            parser_query.set_defaults(
+                action=('render', handle_query_args))
+        elif sysv_args[0] == 'status':
+            from cloudinit.cmd.status import (
+                get_parser as status_parser, handle_status_args)
+            status_parser(parser_status)
+            parser_status.set_defaults(
+                action=('status', handle_status_args))
+
     args = parser.parse_args(args=sysv_args)
 
-    try:
-        (name, functor) = args.action
-    except AttributeError:
-        parser.error('too few arguments')
+    # Subparsers.required = True and each subparser sets action=(name, functor)
+    (name, functor) = args.action
 
     # Setup basic logging to start (until reinitialized)
-    # iff in debug mode...
+    # iff in debug mode.
     if args.debug:
         logging.setupBasicLogging()
 
@@ -820,14 +899,18 @@ def main(sysv_args=None):
         rname, rdesc, reporting_enabled=report_on)
 
     with args.reporter:
-        return util.log_time(
+        retval = util.log_time(
             logfunc=LOG.debug, msg="cloud-init mode '%s'" % name,
             get_uptime=True, func=functor, args=(name, args))
+        reporting.flush_events()
+        return retval
 
 
 if __name__ == '__main__':
     if 'TZ' not in os.environ:
         os.environ['TZ'] = ":/etc/localtime"
-    main(sys.argv)
+    return_value = main(sys.argv)
+    if return_value:
+        sys.exit(return_value)
 
 # vi: ts=4 expandtab

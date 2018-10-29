@@ -47,7 +47,7 @@ class Cloud(object):
 
     @property
     def cfg(self):
-        # Ensure that not indirectly modified
+        # Ensure that cfg is not indirectly modified
         return copy.deepcopy(self._cfg)
 
     def run(self, name, functor, args, freq=None, clear_on_fail=False):
@@ -56,11 +56,12 @@ class Cloud(object):
     def get_template_filename(self, name):
         fn = self.paths.template_tpl % (name)
         if not os.path.isfile(fn):
-            LOG.warn("No template found at %s for template named %s", fn, name)
+            LOG.warning("No template found in %s for template named %s",
+                        os.path.dirname(fn), name)
             return None
         return fn
 
-    # The rest of thes are just useful proxies
+    # The rest of these are just useful proxies
     def get_userdata(self, apply_filter=True):
         return self.datasource.get_userdata(apply_filter)
 
@@ -77,8 +78,9 @@ class Cloud(object):
     def get_locale(self):
         return self.datasource.get_locale()
 
-    def get_hostname(self, fqdn=False):
-        return self.datasource.get_hostname(fqdn=fqdn)
+    def get_hostname(self, fqdn=False, metadata_only=False):
+        return self.datasource.get_hostname(
+            fqdn=fqdn, metadata_only=metadata_only)
 
     def device_name_to_device(self, name):
         return self.datasource.device_name_to_device(name)

@@ -3,22 +3,20 @@
 from cloudinit import helpers
 from cloudinit.sources import DataSourceNoCloud
 from cloudinit import util
-from ..helpers import TestCase, populate_dir, mock, ExitStack
+from cloudinit.tests.helpers import CiTestCase, populate_dir, mock, ExitStack
 
 import os
-import shutil
-import tempfile
 import textwrap
 import yaml
 
 
-class TestNoCloudDataSource(TestCase):
+class TestNoCloudDataSource(CiTestCase):
 
     def setUp(self):
         super(TestNoCloudDataSource, self).setUp()
-        self.tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.tmp)
-        self.paths = helpers.Paths({'cloud_dir': self.tmp})
+        self.tmp = self.tmp_dir()
+        self.paths = helpers.Paths(
+            {'cloud_dir': self.tmp, 'run_dir': self.tmp})
 
         self.cmdline = "root=TESTCMDLINE"
 
@@ -27,6 +25,8 @@ class TestNoCloudDataSource(TestCase):
 
         self.mocks.enter_context(
             mock.patch.object(util, 'get_cmdline', return_value=self.cmdline))
+        self.mocks.enter_context(
+            mock.patch.object(util, 'read_dmi_data', return_value=None))
 
     def test_nocloud_seed_dir(self):
         md = {'instance-id': 'IID', 'dsmode': 'local'}
@@ -52,9 +52,6 @@ class TestNoCloudDataSource(TestCase):
 
         class PsuedoException(Exception):
             pass
-
-        def my_find_devs_with(*args, **kwargs):
-            raise PsuedoException
 
         self.mocks.enter_context(
             mock.patch.object(util, 'find_devs_with',
@@ -215,7 +212,7 @@ class TestNoCloudDataSource(TestCase):
         self.assertNotIn(gateway, str(dsrc.network_config))
 
 
-class TestParseCommandLineData(TestCase):
+class TestParseCommandLineData(CiTestCase):
 
     def test_parse_cmdline_data_valid(self):
         ds_id = "ds=nocloud"

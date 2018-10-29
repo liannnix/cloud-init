@@ -18,6 +18,8 @@ from email.mime.application import MIMEApplication
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 
+import httpretty
+
 from cloudinit import handlers
 from cloudinit import helpers as c_helpers
 from cloudinit import log
@@ -27,7 +29,7 @@ from cloudinit import stages
 from cloudinit import user_data as ud
 from cloudinit import util
 
-from . import helpers
+from cloudinit.tests import helpers
 
 
 INSTANCE_ID = "i-testing"
@@ -523,6 +525,63 @@ c: 4
         self.assertEqual(cfg.get('locale'), 'chicago')
 
 
+class TestConsumeUserDataHttp(TestConsumeUserData, helpers.HttprettyTestCase):
+
+    def setUp(self):
+        TestConsumeUserData.setUp(self)
+        helpers.HttprettyTestCase.setUp(self)
+
+    def tearDown(self):
+        TestConsumeUserData.tearDown(self)
+        helpers.HttprettyTestCase.tearDown(self)
+
+    @mock.patch('cloudinit.url_helper.time.sleep')
+    def test_include(self, mock_sleep):
+        """Test #include."""
+        included_url = 'http://hostname/path'
+        included_data = '#cloud-config\nincluded: true\n'
+        httpretty.register_uri(httpretty.GET, included_url, included_data)
+
+        blob = '#include\n%s\n' % included_url
+
+        self.reRoot()
+        ci = stages.Init()
+        ci.datasource = FakeDataSource(blob)
+        ci.fetch()
+        ci.consume_data()
+        cc_contents = util.load_file(ci.paths.get_ipath("cloud_config"))
+        cc = util.load_yaml(cc_contents)
+        self.assertTrue(cc.get('included'))
+
+    @mock.patch('cloudinit.url_helper.time.sleep')
+    def test_include_bad_url(self, mock_sleep):
+        """Test #include with a bad URL."""
+        bad_url = 'http://bad/forbidden'
+        bad_data = '#cloud-config\nbad: true\n'
+        httpretty.register_uri(httpretty.GET, bad_url, bad_data, status=403)
+
+        included_url = 'http://hostname/path'
+        included_data = '#cloud-config\nincluded: true\n'
+        httpretty.register_uri(httpretty.GET, included_url, included_data)
+
+        blob = '#include\n%s\n%s' % (bad_url, included_url)
+
+        self.reRoot()
+        ci = stages.Init()
+        ci.datasource = FakeDataSource(blob)
+        log_file = self.capture_log(logging.WARNING)
+        ci.fetch()
+        ci.consume_data()
+
+        self.assertIn("403 Client Error: Forbidden for url: %s" % bad_url,
+                      log_file.getvalue())
+
+        cc_contents = util.load_file(ci.paths.get_ipath("cloud_config"))
+        cc = util.load_yaml(cc_contents)
+        self.assertIsNone(cc.get('bad'))
+        self.assertTrue(cc.get('included'))
+
+
 class TestUDProcess(helpers.ResourceUsingTestCase):
 
     def test_bytes_in_userdata(self):
@@ -547,8 +606,10 @@ class TestUDProcess(helpers.ResourceUsingTestCase):
 
 
 class TestConvertString(helpers.TestCase):
+
     def test_handles_binary_non_utf8_decodable(self):
-        blob = b'\x32\x99'
+        """Printable unicode (not utf8-decodable) is safely converted."""
+        blob = b'#!/bin/bash\necho \xc3\x84\n'
         msg = ud.convert_string(blob)
         self.assertEqual(blob, msg.get_payload(decode=True))
 
@@ -561,6 +622,13 @@ class TestConvertString(helpers.TestCase):
         text = "hi mom"
         msg = ud.convert_string(text)
         self.assertEqual(text, msg.get_payload(decode=False))
+
+    def test_handle_mime_parts(self):
+        """Mime parts are properly returned as a mime message."""
+        message = MIMEBase("text", "plain")
+        message.set_payload("Just text")
+        msg = ud.convert_string(str(message))
+        self.assertEqual("Just text", msg.get_payload(decode=False))
 
 
 class TestFetchBaseConfig(helpers.TestCase):

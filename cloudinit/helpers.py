@@ -13,7 +13,7 @@ from time import time
 import contextlib
 import os
 
-import six
+from six import StringIO
 from six.moves.configparser import (
     NoSectionError, NoOptionError, RawConfigParser)
 
@@ -126,11 +126,11 @@ class FileSemaphores(object):
         # this case could happen if the migrator module hadn't run yet
         # but the item had run before we did canon_sem_name.
         if cname != name and os.path.exists(self._get_path(name, freq)):
-            LOG.warn("%s has run without canonicalized name [%s].\n"
-                     "likely the migrator has not yet run. "
-                     "It will run next boot.\n"
-                     "run manually with: cloud-init single --name=migrator"
-                     % (name, cname))
+            LOG.warning("%s has run without canonicalized name [%s].\n"
+                        "likely the migrator has not yet run. "
+                        "It will run next boot.\n"
+                        "run manually with: cloud-init single --name=migrator",
+                        name, cname)
             return True
 
         return False
@@ -239,6 +239,10 @@ class ConfigMerger(object):
             if cc_fn and os.path.isfile(cc_fn):
                 try:
                     i_cfgs.append(util.read_conf(cc_fn))
+                except PermissionError:
+                    LOG.debug(
+                        'Skipped loading cloud-config from %s due to'
+                        ' non-root.', cc_fn)
                 except Exception:
                     util.logexc(LOG, 'Failed loading of cloud-config from %s',
                                 cc_fn)
@@ -375,8 +379,8 @@ class Paths(object):
     def get_ipath(self, name=None):
         ipath = self._get_ipath(name)
         if not ipath:
-            LOG.warn(("No per instance data available, "
-                      "is there an datasource/iid set?"))
+            LOG.warning(("No per instance data available, "
+                         "is there an datasource/iid set?"))
             return None
         else:
             return ipath
@@ -441,12 +445,16 @@ class DefaultingConfigParser(RawConfigParser):
 
     def stringify(self, header=None):
         contents = ''
-        with six.StringIO() as outputstream:
-            self.write(outputstream)
-            outputstream.flush()
-            contents = outputstream.getvalue()
-            if header:
-                contents = "\n".join([header, contents])
+        outputstream = StringIO()
+        self.write(outputstream)
+        outputstream.flush()
+        contents = outputstream.getvalue()
+        if header:
+            contents = '\n'.join([header, contents, ''])
         return contents
+
+
+def identity(object):
+    return object
 
 # vi: ts=4 expandtab

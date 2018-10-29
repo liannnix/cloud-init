@@ -3,7 +3,7 @@
 from cloudinit.distros.parsers import resolv_conf
 from cloudinit.distros import rhel_util
 
-from ..helpers import TestCase
+from cloudinit.tests.helpers import TestCase
 
 import re
 import tempfile
@@ -30,7 +30,7 @@ class TestResolvHelper(TestCase):
 
     def test_local_domain(self):
         rp = resolv_conf.ResolvConf(BASE_RESOLVE)
-        self.assertEqual(None, rp.local_domain)
+        self.assertIsNone(rp.local_domain)
 
         rp.local_domain = "bob"
         self.assertEqual('bob', rp.local_domain)

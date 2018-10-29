@@ -1,10 +1,10 @@
 CWD=$(shell pwd)
 PYVER ?= $(shell for p in python3 python2; do \
-	out=$(which $$p 2>&1) && echo $$p && exit; done; \
-	exit 1)
+	out=$$(command -v $$p 2>&1) && echo $$p && exit; done; exit 1)
+
 noseopts ?= -v
 
-YAML_FILES=$(shell find cloudinit bin tests tools -name "*.yaml" -type f )
+YAML_FILES=$(shell find cloudinit tests tools -name "*.yaml" -type f )
 YAML_FILES+=$(shell find doc/examples -name "cloud-config*.txt" -type f )
 
 PIP_INSTALL := pip install
@@ -46,12 +46,18 @@ pyflakes:
 
 pyflakes3:
 	@$(CWD)/tools/run-pyflakes3
-	
+
 unittest: clean_pyc
-	nosetests $(noseopts) tests/unittests
+	nosetests $(noseopts) tests/unittests cloudinit
 
 unittest3: clean_pyc
-	nosetests3 $(noseopts) tests/unittests
+	nosetests3 $(noseopts) tests/unittests cloudinit
+
+ci-deps-ubuntu:
+	@$(PYVER) $(CWD)/tools/read-dependencies --distro ubuntu --test-distro
+
+ci-deps-centos:
+	@$(PYVER) $(CWD)/tools/read-dependencies --distro centos --test-distro
 
 pip-requirements:
 	@echo "Installing cloud-init dependencies..."
@@ -69,6 +75,9 @@ check_version:
 	    "not equal to code version '$(CODE_VERSION)'"; exit 2; \
 	    else true; fi
 
+config/cloud.cfg:
+	$(PYVER) ./tools/render-cloudcfg config/cloud.cfg.tmpl config/cloud.cfg
+
 clean_pyc:
 	@find . -type f -name "*.pyc" -delete
 
@@ -79,11 +88,25 @@ yaml:
 	@$(PYVER) $(CWD)/tools/validate-yaml.py $(YAML_FILES)
 
 rpm:
-	./packages/brpm --distro $(distro)
+	$(PYVER) ./packages/brpm --distro=$(distro)
+
+srpm:
+	$(PYVER) ./packages/brpm --srpm --distro=$(distro)
 
 deb:
-	./packages/bddeb
+	@which debuild || \
+		{ echo "Missing devscripts dependency. Install with:"; \
+		  echo sudo apt-get install devscripts; exit 1; }
 
-.PHONY: test pyflakes pyflakes3 clean pep8 rpm deb yaml check_version
-.PHONY: pip-test-requirements pip-requirements clean_pyc unittest unittest3
-.PHONY: style-check
+	$(PYVER) ./packages/bddeb
+
+deb-src:
+	@which debuild || \
+		{ echo "Missing devscripts dependency. Install with:"; \
+		  echo sudo apt-get install devscripts; exit 1; }
+	$(PYVER) ./packages/bddeb -S -d
+
+
+.PHONY: test pyflakes pyflakes3 clean pep8 rpm srpm deb deb-src yaml
+.PHONY: check_version pip-test-requirements pip-requirements clean_pyc
+.PHONY: unittest unittest3 style-check

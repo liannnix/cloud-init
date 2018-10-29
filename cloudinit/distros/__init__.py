@@ -30,17 +30,28 @@ from cloudinit import util
 from cloudinit.distros.parsers import hosts
 
 
+# Used when a cloud-config module can be run on all cloud-init distibutions.
+# The value 'all' is surfaced in module documentation for distro support.
+ALL_DISTROS = 'all'
+
 OSFAMILIES = {
     'debian': ['debian', 'ubuntu'],
-    'redhat': ['fedora', 'rhel'],
+    'redhat': ['centos', 'fedora', 'rhel'],
     'gentoo': ['gentoo'],
     'freebsd': ['freebsd'],
-    'suse': ['sles'],
+    'suse': ['opensuse', 'sles'],
     'arch': ['arch'],
     'altlinux': ['altlinux'],
 }
 
 LOG = logging.getLogger(__name__)
+
+# This is a best guess regex, based on current EC2 AZs on 2017-12-11.
+# It could break when Amazon adds new regions and new AZs.
+_EC2_AZ_RE = re.compile('^[a-z][a-z]-(?:[a-z]+-)+[0-9][a-z]$')
+
+# Default NTP Client Configurations
+PREFERRED_NTP_CLIENTS = ['chrony', 'systemd-timesyncd', 'ntp', 'ntpdate']
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -53,6 +64,7 @@ class Distro(object):
     tz_zone_dir = "/usr/share/zoneinfo"
     init_cmd = ['service']  # systemctl, service etc
     renderer_configs = {}
+    _preferred_ntp_clients = None
 
     def __init__(self, name, cfg, paths):
         self._paths = paths
@@ -63,11 +75,10 @@ class Distro(object):
     def install_packages(self, pkglist):
         raise NotImplementedError()
 
-    @abc.abstractmethod
     def _write_network(self, settings):
-        # In the future use the http://fedorahosted.org/netcf/
-        # to write this blob out in a distro format
-        raise NotImplementedError()
+        raise RuntimeError(
+            "Legacy function '_write_network' was called in distro '%s'.\n"
+            "_write_network_config needs implementation.\n" % self.name)
 
     def _write_network_config(self, settings):
         raise NotImplementedError()
@@ -80,7 +91,7 @@ class Distro(object):
         LOG.debug("Selected renderer '%s' from priority list: %s",
                   name, priority)
         renderer = render_cls(config=self.renderer_configs.get(name))
-        renderer.render_network_config(network_config=network_config)
+        renderer.render_network_config(network_config)
         return []
 
     def _find_tz_file(self, tz):
@@ -99,11 +110,8 @@ class Distro(object):
         self._apply_hostname(writeable_hostname)
 
     def uses_systemd(self):
-        try:
-            res = os.lstat('/run/systemd/system')
-            return stat.S_ISDIR(res.st_mode)
-        except Exception:
-            return False
+        """Wrapper to report whether this distro uses systemd or sysvinit."""
+        return uses_systemd()
 
     @abc.abstractmethod
     def package_command(self, cmd, args=None, pkgs=None):
@@ -136,7 +144,11 @@ class Distro(object):
         # this applies network where 'settings' is interfaces(5) style
         # it is obsolete compared to apply_network_config
         # Write it out
+
+        # pylint: disable=assignment-from-no-return
+        # We have implementations in arch, freebsd and gentoo still
         dev_names = self._write_network(settings)
+        # pylint: enable=assignment-from-no-return
         # Now try to bring them up
         if bring_up:
             return self._bring_up_interfaces(dev_names)
@@ -144,17 +156,20 @@ class Distro(object):
 
     def _apply_network_from_network_config(self, netconfig, bring_up=True):
         distro = self.__class__
-        LOG.warn("apply_network_config is not currently implemented "
-                 "for distribution '%s'.  Attempting to use apply_network",
-                 distro)
+        LOG.warning("apply_network_config is not currently implemented "
+                    "for distribution '%s'.  Attempting to use apply_network",
+                    distro)
         header = '\n'.join([
             "# Converted from network_config for distro %s" % distro,
-            "# Implmentation of _write_network_config is needed."
+            "# Implementation of _write_network_config is needed."
         ])
         ns = network_state.parse_net_config_data(netconfig)
         contents = eni.network_state_to_eni(
             ns, header=header, render_hwaddress=True)
         return self.apply_network(contents, bring_up=bring_up)
+
+    def generate_fallback_config(self):
+        return net.generate_fallback_config()
 
     def apply_network_config(self, netconfig, bring_up=False):
         # apply network config netconfig
@@ -185,6 +200,9 @@ class Distro(object):
 
     def _get_localhost_ip(self):
         return "127.0.0.1"
+
+    def get_locale(self):
+        raise NotImplementedError()
 
     @abc.abstractmethod
     def _read_hostname(self, filename, default=None):
@@ -329,6 +347,14 @@ class Distro(object):
             contents.write("%s\n" % (eh))
             util.write_file(self.hosts_fn, contents.getvalue(), mode=0o644)
 
+    @property
+    def preferred_ntp_clients(self):
+        """Allow distro to determine the preferred ntp client list"""
+        if not self._preferred_ntp_clients:
+            self._preferred_ntp_clients = list(PREFERRED_NTP_CLIENTS)
+
+        return self._preferred_ntp_clients
+
     def _bring_up_interface(self, device_name):
         cmd = ['ifup', device_name]
         LOG.debug("Attempting to run bring up interface %s using command %s",
@@ -336,7 +362,8 @@ class Distro(object):
         try:
             (_out, err) = util.subp(cmd)
             if len(err):
-                LOG.warn("Running %s resulted in stderr output: %s", cmd, err)
+                LOG.warning("Running %s resulted in stderr output: %s",
+                            cmd, err)
             return True
         except util.ProcessExecutionError:
             util.logexc(LOG, "Running interface command %s failed", cmd)
@@ -358,8 +385,11 @@ class Distro(object):
         """
         Add a user to the system using standard GNU tools
         """
+        # XXX need to make add_user idempotent somehow as we
+        # still want to add groups or modify ssh keys on pre-existing
+        # users in the image.
         if util.is_user(name):
-            LOG.info("User %s already exists, skipping." % name)
+            LOG.info("User %s already exists, skipping.", name)
             return
 
         if 'create_groups' in kwargs:
@@ -508,7 +538,7 @@ class Distro(object):
             self.lock_passwd(name)
 
         # Configure sudo access
-        if 'sudo' in kwargs:
+        if 'sudo' in kwargs and kwargs['sudo'] is not False:
             self.write_sudo_rules(name, kwargs['sudo'])
 
         # Import SSH keys
@@ -521,13 +551,27 @@ class Distro(object):
                 keys = list(keys.values())
             if keys is not None:
                 if not isinstance(keys, (tuple, list, set)):
-                    LOG.warn("Invalid type '%s' detected for"
-                             " 'ssh_authorized_keys', expected list,"
-                             " string, dict, or set.", type(keys))
+                    LOG.warning("Invalid type '%s' detected for"
+                                " 'ssh_authorized_keys', expected list,"
+                                " string, dict, or set.", type(keys))
+                    keys = []
                 else:
                     keys = set(keys) or []
-                    ssh_util.setup_user_keys(keys, name, options=None)
-
+            ssh_util.setup_user_keys(set(keys), name)
+        if 'ssh_redirect_user' in kwargs:
+            cloud_keys = kwargs.get('cloud_public_ssh_keys', [])
+            if not cloud_keys:
+                LOG.warning(
+                    'Unable to disable ssh logins for %s given'
+                    ' ssh_redirect_user: %s. No cloud public-keys present.',
+                    name, kwargs['ssh_redirect_user'])
+            else:
+                redirect_user = kwargs['ssh_redirect_user']
+                disable_option = ssh_util.DISABLE_USER_OPTS
+                disable_option = disable_option.replace('$USER', redirect_user)
+                disable_option = disable_option.replace('$DISABLE_USER', name)
+                ssh_util.setup_user_keys(
+                    set(cloud_keys), name, options=disable_option)
         return True
 
     def lock_passwd(self, name):
@@ -596,7 +640,7 @@ class Distro(object):
                              "#includedir %s" % (path), '']
                     sudoers_contents = "\n".join(lines)
                     util.append_file(sudo_base, sudoers_contents)
-                LOG.debug("Added '#includedir %s' to %s" % (path, sudo_base))
+                LOG.debug("Added '#includedir %s' to %s", path, sudo_base)
             except IOError as e:
                 util.logexc(LOG, "Failed to write %s", sudo_base)
                 raise e
@@ -648,11 +692,11 @@ class Distro(object):
 
         # Check if group exists, and then add it doesn't
         if util.is_group(name):
-            LOG.warn("Skipping creation of existing group '%s'" % name)
+            LOG.warning("Skipping creation of existing group '%s'", name)
         else:
             try:
                 util.subp(group_add_cmd)
-                LOG.info("Created new group %s" % name)
+                LOG.info("Created new group %s", name)
             except Exception:
                 util.logexc(LOG, "Failed to create group %s", name)
 
@@ -660,12 +704,12 @@ class Distro(object):
         if len(members) > 0:
             for member in members:
                 if not util.is_user(member):
-                    LOG.warn("Unable to add group member '%s' to group '%s'"
-                             "; user does not exist.", member, name)
+                    LOG.warning("Unable to add group member '%s' to group '%s'"
+                                "; user does not exist.", member, name)
                     continue
 
                 util.subp(['usermod', '-a', '-G', name, member])
-                LOG.info("Added user '%s' to group '%s'" % (member, name))
+                LOG.info("Added user '%s' to group '%s'", member, name)
 
 
 def _get_package_mirror_info(mirror_info, data_source=None,
@@ -676,18 +720,13 @@ def _get_package_mirror_info(mirror_info, data_source=None,
     if not mirror_info:
         mirror_info = {}
 
-    # ec2 availability zones are named cc-direction-[0-9][a-d] (us-east-1b)
-    # the region is us-east-1. so region = az[0:-1]
-    directions_re = '|'.join([
-        'central', 'east', 'north', 'northeast', 'northwest',
-        'south', 'southeast', 'southwest', 'west'])
-    ec2_az_re = ("^[a-z][a-z]-(%s)-[1-9][0-9]*[a-z]$" % directions_re)
-
     subst = {}
     if data_source and data_source.availability_zone:
         subst['availability_zone'] = data_source.availability_zone
 
-        if re.match(ec2_az_re, data_source.availability_zone):
+        # ec2 availability zones are named cc-direction-[0-9][a-d] (us-east-1b)
+        # the region is us-east-1. so region = az[0:-1]
+        if _EC2_AZ_RE.match(data_source.availability_zone):
             subst['ec2_region'] = "%s" % data_source.availability_zone[0:-1]
 
     if data_source and data_source.region:
@@ -709,7 +748,7 @@ def _get_package_mirror_info(mirror_info, data_source=None,
         if found:
             results[name] = found
 
-    LOG.debug("filtered distro mirror info: %s" % results)
+    LOG.debug("filtered distro mirror info: %s", results)
 
     return results
 
@@ -750,5 +789,14 @@ def set_etc_timezone(tz, tz_file=None, tz_conf="/etc/timezone",
         else:
             util.copy(tz_file, tz_local)
     return
+
+
+def uses_systemd():
+    try:
+        res = os.lstat('/run/systemd/system')
+        return stat.S_ISDIR(res.st_mode)
+    except Exception:
+        return False
+
 
 # vi: ts=4 expandtab

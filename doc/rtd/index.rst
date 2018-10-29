@@ -31,6 +31,7 @@ initialization of a cloud instance.
    topics/capabilities.rst
    topics/availability.rst
    topics/format.rst
+   topics/instancedata.rst
    topics/dir_layout.rst
    topics/examples.rst
    topics/boot.rst
@@ -38,7 +39,9 @@ initialization of a cloud instance.
    topics/logging.rst
    topics/modules.rst
    topics/merging.rst
+   topics/network-config.rst
    topics/vendordata.rst
+   topics/debugging.rst
    topics/moreinfo.rst
    topics/hacking.rst
    topics/tests.rst

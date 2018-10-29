@@ -14,30 +14,41 @@ from cloudinit.sources import (
     DataSourceDigitalOcean as DigitalOcean,
     DataSourceEc2 as Ec2,
     DataSourceGCE as GCE,
+    DataSourceHetzner as Hetzner,
+    DataSourceIBMCloud as IBMCloud,
     DataSourceMAAS as MAAS,
     DataSourceNoCloud as NoCloud,
     DataSourceOpenNebula as OpenNebula,
     DataSourceOpenStack as OpenStack,
+    DataSourceOracle as Oracle,
     DataSourceOVF as OVF,
+    DataSourceScaleway as Scaleway,
     DataSourceSmartOS as SmartOS,
 )
 from cloudinit.sources import DataSourceNone as DSNone
 
-from .. import helpers as test_helpers
+from cloudinit.tests import helpers as test_helpers
 
 DEFAULT_LOCAL = [
+    Azure.DataSourceAzure,
     CloudSigma.DataSourceCloudSigma,
     ConfigDrive.DataSourceConfigDrive,
     DigitalOcean.DataSourceDigitalOcean,
+    Hetzner.DataSourceHetzner,
+    IBMCloud.DataSourceIBMCloud,
     NoCloud.DataSourceNoCloud,
     OpenNebula.DataSourceOpenNebula,
+    Oracle.DataSourceOracle,
     OVF.DataSourceOVF,
     SmartOS.DataSourceSmartOS,
+    Ec2.DataSourceEc2Local,
+    OpenStack.DataSourceOpenStackLocal,
+    Scaleway.DataSourceScaleway,
 ]
 
 DEFAULT_NETWORK = [
+    AliYun.DataSourceAliYun,
     AltCloud.DataSourceAltCloud,
-    Azure.DataSourceAzureNet,
     Bigstep.DataSourceBigstep,
     CloudStack.DataSourceCloudStack,
     DSNone.DataSourceNone,
