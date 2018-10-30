@@ -1,3 +1,4 @@
+spec: alt/cloud-init.spec
 tar: @version@:.
 diff: @version@:. altlinux:.
 copy: alt/*
