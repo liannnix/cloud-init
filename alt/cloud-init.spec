@@ -80,7 +80,7 @@ rm -f %buildroot%_sysconfdir/cloud/templates/*.suse.*
 rm -f %buildroot%_sysconfdir/cloud/templates/*.ubuntu.*
 
 %check
-make unittest noseopts=" -I test_cloudstack.py -I test_handler_apt_source_v3.py"
+make unittest noseopts=" -v -e test_dhclient_run_with_tmpdir"
 
 %post
 %post_service cloud-config
