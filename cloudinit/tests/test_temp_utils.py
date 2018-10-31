@@ -2,6 +2,8 @@
 
 """Tests for cloudinit.temp_utils"""
 
+import os
+
 from cloudinit.temp_utils import mkdtemp, mkstemp
 from cloudinit.tests.helpers import CiTestCase, wrap_and_call
 
@@ -24,7 +26,7 @@ class TestTempUtils(CiTestCase):
              'os.path.isdir': True},
             mkdtemp)
         self.assertEqual('/fake/return/path', retval)
-        self.assertEqual([{'dir': '/tmp'}], calls)
+        self.assertEqual([{'dir': os.getenv('TMPDIR', '/tmp')}], calls)
 
     def test_mkdtemp_default_non_root_needs_exe(self):
         """mkdtemp creates a dir under /var/tmp/cloud-init when needs_exe."""
@@ -78,7 +80,7 @@ class TestTempUtils(CiTestCase):
              'os.path.isdir': True},
             mkstemp)
         self.assertEqual('/fake/return/path', retval)
-        self.assertEqual([{'dir': '/tmp'}], calls)
+        self.assertEqual([{'dir': os.getenv('TMPDIR', '/tmp')}], calls)
 
     def test_mkstemp_default_root(self):
         """mkstemp creates a secure tempfile in /run/cloud-init for root."""
