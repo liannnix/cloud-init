@@ -278,7 +278,6 @@ setuptools.setup(
     scripts=['tools/cloud-init-per'],
     license='Dual-licensed under GPLv3 or Apache 2.0',
     data_files=data_files,
-    install_requires=requirements,
     cmdclass=cmdclass,
     entry_points={
         'console_scripts': [

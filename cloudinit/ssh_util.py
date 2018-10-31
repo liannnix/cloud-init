@@ -15,7 +15,7 @@ from cloudinit import util
 LOG = logging.getLogger(__name__)
 
 # See: man sshd_config
-DEF_SSHD_CFG = "/etc/ssh/sshd_config"
+DEF_SSHD_CFG = "/etc/openssh/sshd_config"
 
 # taken from openssh source openssh-7.3p1/sshkey.c:
 # static const struct keytype keytypes[] = { ... }

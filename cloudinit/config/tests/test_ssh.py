@@ -69,7 +69,7 @@ class TestHandleSsh(CiTestCase):
         cc_ssh.handle("name", cfg, cloud, None, None)
         options = ssh_util.DISABLE_USER_OPTS.replace("$USER", "NONE")
         options = options.replace("$DISABLE_USER", "root")
-        m_glob.assert_called_once_with('/etc/ssh/ssh_host_*key*')
+        m_glob.assert_called_once_with('/etc/openssh/ssh_host_*key*')
         self.assertIn(
             [mock.call('/etc/ssh/ssh_host_rsa_key'),
              mock.call('/etc/ssh/ssh_host_dsa_key'),

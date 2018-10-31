@@ -25,7 +25,7 @@ LOG = logging.getLogger(__name__)
 frequency = PER_INSTANCE
 NTP_CONF = '/etc/ntp.conf'
 NR_POOL_SERVERS = 4
-distros = ['centos', 'debian', 'fedora', 'opensuse', 'rhel', 'sles', 'ubuntu']
+distros = ['centos', 'debian', 'fedora', 'opensuse', 'rhel', 'sles', 'ubuntu', 'altlinux']
 
 NTP_CLIENT_CONFIG = {
     'chrony': {

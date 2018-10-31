@@ -103,7 +103,7 @@ from cloudinit import util
 
 
 GENERATE_KEY_NAMES = ['rsa', 'dsa', 'ecdsa', 'ed25519']
-KEY_FILE_TPL = '/etc/ssh/ssh_host_%s_key'
+KEY_FILE_TPL = '/etc/openssh/ssh_host_%s_key'
 
 CONFIG_KEY_TO_FILE = {}
 PRIV_TO_PUB = {}
@@ -120,7 +120,7 @@ def handle(_name, cfg, cloud, log, _args):
 
     # remove the static keys from the pristine image
     if cfg.get("ssh_deletekeys", True):
-        key_pth = os.path.join("/etc/ssh/", "ssh_host_*key*")
+        key_pth = os.path.join("/etc/openssh/", "ssh_host_*key*")
         for f in glob.glob(key_pth):
             try:
                 util.del_file(f)
@@ -142,7 +142,7 @@ def handle(_name, cfg, cloud, log, _args):
             cmd = ['sh', '-xc', KEY_GEN_TPL % pair]
             try:
                 # TODO(harlowja): Is this guard needed?
-                with util.SeLinuxGuard("/etc/ssh", recursive=True):
+                with util.SeLinuxGuard("/etc/openssh", recursive=True):
                     util.subp(cmd, capture=False)
                 log.debug("Generated a key for %s from %s", pair[0], pair[1])
             except Exception:
@@ -163,7 +163,7 @@ def handle(_name, cfg, cloud, log, _args):
             cmd = ['ssh-keygen', '-t', keytype, '-N', '', '-f', keyfile]
 
             # TODO(harlowja): Is this guard needed?
-            with util.SeLinuxGuard("/etc/ssh", recursive=True):
+            with util.SeLinuxGuard("/etc/openssh", recursive=True):
                 try:
                     out, err = util.subp(cmd, capture=True, env=lang_c)
                     sys.stdout.write(util.decode_binary(out))
