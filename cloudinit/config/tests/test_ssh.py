@@ -71,10 +71,10 @@ class TestHandleSsh(CiTestCase):
         options = options.replace("$DISABLE_USER", "root")
         m_glob.assert_called_once_with('/etc/openssh/ssh_host_*key*')
         self.assertIn(
-            [mock.call('/etc/ssh/ssh_host_rsa_key'),
-             mock.call('/etc/ssh/ssh_host_dsa_key'),
-             mock.call('/etc/ssh/ssh_host_ecdsa_key'),
-             mock.call('/etc/ssh/ssh_host_ed25519_key')],
+            [mock.call('/etc/openssh/ssh_host_rsa_key'),
+             mock.call('/etc/openssh/ssh_host_dsa_key'),
+             mock.call('/etc/openssh/ssh_host_ecdsa_key'),
+             mock.call('/etc/openssh/ssh_host_ed25519_key')],
             m_path_exists.call_args_list)
         self.assertEqual([mock.call(set(keys), "root", options=options)],
                          m_setup_keys.call_args_list)
