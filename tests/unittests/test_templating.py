@@ -58,7 +58,7 @@ class TestTemplates(test_helpers.CiTestCase):
         self.assertEqual("", contents.strip())
 
         blob = "blahblah $blah"
-        (template_type, _renderer, _contents) = templater.detect_template(blob)
+        (template_type, _renderer, contents) = templater.detect_template(blob)
         self.assertIn("cheetah", template_type)
         self.assertEqual(blob, contents)
 
