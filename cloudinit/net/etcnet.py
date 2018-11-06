@@ -243,10 +243,10 @@ class Renderer(renderer.Renderer):
                 contents[iface_cfg.routes.path] = iface_cfg.routes.to_string()
         return contents
 
-    def render_network_state(self, network_state, target=None):
+    def render_network_state(self, network_state, templates=None, target=None):
         base_etcnet_dir = util.target_path(target, self.etcnet_dir)
         for path, data in self._render_etcnet(base_etcnet_dir,
-                                                 network_state).items():
+                                              network_state).items():
             util.write_file(path, data)
         if self.dns_path:
             dns_path = util.target_path(target, self.dns_path)
