@@ -16,12 +16,8 @@ def _make_header(sep='#'):
         "Created by cloud-init on instance boot automatically, do not edit.",
         "",
     ]
-    for i in range(0, len(lines)):
-        if lines[i]:
-            lines[i] = sep + " " + lines[i]
-        else:
-            lines[i] = sep
-    return "\n".join(lines)
+    sep_lines = [sep + " " + line if line else sep for line in lines]
+    return "\n".join(sep_lines)
 
 
 def _is_default_route(route):
@@ -164,7 +160,7 @@ class NetInterface(ConfigMap):
 
 
 class Renderer(renderer.Renderer):
-    """Renders network information in a /etc/sysconfig format."""
+    """Renders network information in a /etc/net format."""
 
     iface_defaults = tuple([
         ('ONBOOT', True),
