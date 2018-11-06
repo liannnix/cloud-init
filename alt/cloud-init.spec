@@ -103,6 +103,7 @@ make unittest noseopts=" -I test_cloudstack.py -I test_handler_apt_source_v3.py"
 %dir               %_sysconfdir/cloud/templates
 %config(noreplace) %_sysconfdir/cloud/templates/*
 %_sysconfdir/NetworkManager/dispatcher.d/hook-network-manager
+%_sysconfdir/bash_completion.d/%name
 /lib/udev/rules.d/66-azure-ephemeral.rules
 %_initdir/*
 %_unitdir/*
