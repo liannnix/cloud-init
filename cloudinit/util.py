@@ -136,11 +136,7 @@ def target_path(target, path=None):
     if not path:
         return target
 
-    # os.path.join("/etc", "/foo") returns "/foo". Chomp all leading /.
-    while len(path) and path[0] == "/":
-        path = path[1:]
-
-    return os.path.join(target, path)
+    return os.path.join(target, path.lstrip('/'))
 
 
 def decode_binary(blob, encoding='utf-8'):
