@@ -5,15 +5,17 @@ from . import netplan
 from . import RendererNotFoundError
 from . import sysconfig
 from . import etcnet
+from . import networkd
 
 NAME_TO_RENDERER = {
     "eni": eni,
     "netplan": netplan,
     "sysconfig": sysconfig,
     "etcnet": etcnet,
+    "networkd": networkd,
 }
 
-DEFAULT_PRIORITY = ["eni", "sysconfig", "netplan", "etcnet"]
+DEFAULT_PRIORITY = ["eni", "sysconfig", "netplan", "etcnet", "networkd"]
 
 
 def search(priority=None, target=None, first=False):
