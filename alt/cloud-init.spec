@@ -1,6 +1,6 @@
 Name:    cloud-init
-Version: 0.7.9
-Release: alt3.git.5beecd
+Version: 18.4
+Release: alt1
 
 Summary: Cloud instance init scripts
 Group:   System/Configuration/Boot and Init
@@ -26,7 +26,7 @@ BuildArch: noarch
 BuildRequires: /proc
 
 BuildRequires: python-devel python-module-distribute python-module-nose python-module-mocker
-BuildRequires: python-module-yaml python2.7(Cheetah) python-module-oauth
+BuildRequires: python-module-yaml python-module-oauth
 BuildRequires: systemd-devel
 # For tests
 BuildRequires: python-modules-json python-module-requests python-module-jsonpatch python-module-configobj python-module-mock python-module-oauthlib
@@ -68,9 +68,6 @@ install -pD -m755 %SOURCE14 %buildroot%_initdir/cloud-init-local
 mkdir -p %buildroot%_libexecdir
 mv %buildroot/usr/libexec/%name %buildroot%_libexecdir/
 mkdir -p %buildroot%_sharedstatedir/cloud
-
-# Don't ship the tests
-rm -r %buildroot%python_sitelibdir/tests
 
 # Remove non-ALTLinux templates
 rm -f %buildroot%_sysconfdir/cloud/templates/*.debian.*
