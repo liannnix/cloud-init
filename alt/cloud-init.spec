@@ -113,6 +113,10 @@ make unittest noseopts=" -v -e test_dhclient_run_with_tmpdir"
 %dir %_sharedstatedir/cloud
 
 %changelog
+* Thu Dec 13 2018 Mikhail Gordeev <obirvalger@altlinux.org> 18.4-alt1
+- Update to 18.4
+- Add support of networkd
+
 * Thu May 03 2018 Aleksei Nikiforov <darktemplar@altlinux.org> 0.7.9-alt3.git.5beecd
 - Updated build dependencies.
 
