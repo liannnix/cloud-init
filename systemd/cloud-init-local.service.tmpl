@@ -1,6 +1,7 @@
 ## template:jinja
 [Unit]
 Description=Initial cloud-init job (pre-networking)
+ConditionVirtualization=yes
 {% if variant in ["ubuntu", "unknown", "debian"] %}
 DefaultDependencies=no
 {% endif %}
