@@ -51,11 +51,6 @@ from cloudinit import version
 
 from cloudinit.settings import (CFG_BUILTIN)
 
-try:
-    string_types = (basestring,)
-except NameError:
-    string_types = (str,)
-
 _DNS_REDIRECT_IP = None
 LOG = logging.getLogger(__name__)
 
@@ -77,7 +72,6 @@ CONTAINER_TESTS = (['systemd-detect-virt', '--quiet', '--container'],
 PROC_CMDLINE = None
 
 _LSB_RELEASE = {}
-PY26 = sys.version_info[0:2] == (2, 6)
 
 
 def get_architecture(target=None):
@@ -125,7 +119,7 @@ def target_path(target, path=None):
     # return 'path' inside target, accepting target as None
     if target in (None, ""):
         target = "/"
-    elif not isinstance(target, string_types):
+    elif not isinstance(target, six.string_types):
         raise ValueError("Unexpected input for target: %s" % target)
     else:
         target = os.path.abspath(target)
@@ -611,8 +605,8 @@ def get_linux_distro():
         distro_name = os_release.get('ID', '')
         distro_version = os_release.get('VERSION_ID', '')
         if 'sles' in distro_name or 'suse' in distro_name:
-            # RELEASE_BLOCKER: We will drop this sles ivergent behavior in
-            # before 18.4 so that get_linux_distro returns a named tuple
+            # RELEASE_BLOCKER: We will drop this sles divergent behavior in
+            # the future so that get_linux_distro returns a named tuple
             # which will include both version codename and architecture
             # on all distributions.
             flavor = platform.machine()
@@ -664,7 +658,8 @@ def system_info():
             var = 'ubuntu'
         elif linux_dist == 'redhat':
             var = 'rhel'
-        elif linux_dist in ('opensuse', 'sles'):
+        elif linux_dist in (
+                'opensuse', 'opensuse-tumbleweed', 'opensuse-leap', 'sles'):
             var = 'suse'
         else:
             var = 'linux'
@@ -704,6 +699,21 @@ def get_cfg_option_list(yobj, key, default=None):
 # get a cfg entry by its path array
 # for f['a']['b']: get_cfg_by_path(mycfg,('a','b'))
 def get_cfg_by_path(yobj, keyp, default=None):
+    """Return the value of the item at path C{keyp} in C{yobj}.
+
+    example:
+      get_cfg_by_path({'a': {'b': {'num': 4}}}, 'a/b/num') == 4
+      get_cfg_by_path({'a': {'b': {'num': 4}}}, 'c/d') == None
+
+    @param yobj: A dictionary.
+    @param keyp: A path inside yobj.  it can be a '/' delimited string,
+                 or an iterable.
+    @param default: The default to return if the path does not exist.
+    @return: The value of the item at keyp."
+        is not found."""
+
+    if isinstance(keyp, six.string_types):
+        keyp = keyp.split("/")
     cur = yobj
     for tok in keyp:
         if tok not in cur:
@@ -1591,14 +1601,17 @@ def json_dumps(data):
                       separators=(',', ': '), default=json_serialize_default)
 
 
-def yaml_dumps(obj, explicit_start=True, explicit_end=True):
+def yaml_dumps(obj, explicit_start=True, explicit_end=True, noalias=False):
     """Return data in nicely formatted yaml."""
-    return yaml.safe_dump(obj,
-                          line_break="\n",
-                          indent=4,
-                          explicit_start=explicit_start,
-                          explicit_end=explicit_end,
-                          default_flow_style=False)
+
+    return yaml.dump(obj,
+                     line_break="\n",
+                     indent=4,
+                     explicit_start=explicit_start,
+                     explicit_end=explicit_end,
+                     default_flow_style=False,
+                     Dumper=(safeyaml.NoAliasSafeDumper
+                             if noalias else yaml.dumper.Dumper))
 
 
 def ensure_dir(path, mode=None):
@@ -1662,7 +1675,7 @@ def mounts():
     return mounted
 
 
-def mount_cb(device, callback, data=None, rw=False, mtype=None, sync=True,
+def mount_cb(device, callback, data=None, mtype=None,
              update_env_for_mount=None):
     """
     Mount the device, call method 'callback' passing the directory
@@ -1709,18 +1722,7 @@ def mount_cb(device, callback, data=None, rw=False, mtype=None, sync=True,
             for mtype in mtypes:
                 mountpoint = None
                 try:
-                    mountcmd = ['mount']
-                    mountopts = []
-                    if rw:
-                        mountopts.append('rw')
-                    else:
-                        mountopts.append('ro')
-                    if sync:
-                        # This seems like the safe approach to do
-                        # (ie where this is on by default)
-                        mountopts.append("sync")
-                    if mountopts:
-                        mountcmd.extend(["-o", ",".join(mountopts)])
+                    mountcmd = ['mount', '-o', 'ro']
                     if mtype:
                         mountcmd.extend(['-t', mtype])
                     mountcmd.append(device)
@@ -2167,6 +2169,11 @@ def is_container():
     return False
 
 
+def is_lxd():
+    """Check to see if we are running in a lxd container."""
+    return os.path.exists('/dev/lxd/sock')
+
+
 def get_proc_env(pid, encoding='utf-8', errors='replace'):
     """
     Return the environment in a dict that a given process id was started with.
@@ -2326,17 +2333,21 @@ def parse_mtab(path):
     return None
 
 
-def find_freebsd_part(label_part):
-    if label_part.startswith("/dev/label/"):
-        target_label = label_part[5:]
-        (label_part, _err) = subp(['glabel', 'status', '-s'])
-        for labels in label_part.split("\n"):
+def find_freebsd_part(fs):
+    splitted = fs.split('/')
+    if len(splitted) == 3:
+        return splitted[2]
+    elif splitted[2] in ['label', 'gpt', 'ufs']:
+        target_label = fs[5:]
+        (part, _err) = subp(['glabel', 'status', '-s'])
+        for labels in part.split("\n"):
             items = labels.split()
-            if len(items) > 0 and items[0].startswith(target_label):
-                label_part = items[2]
+            if len(items) > 0 and items[0] == target_label:
+                part = items[2]
                 break
-        label_part = str(label_part)
-    return label_part
+        return str(part)
+    else:
+        LOG.warning("Unexpected input in find_freebsd_part: %s", fs)
 
 
 def get_path_dev_freebsd(path, mnt_list):
@@ -2807,9 +2818,6 @@ def load_shell_content(content, add_empty=False, empty_val=None):
        variables.  Set their value to empty_val."""
 
     def _shlex_split(blob):
-        if PY26 and isinstance(blob, six.text_type):
-            # Older versions don't support unicode input
-            blob = blob.encode("utf8")
         return shlex.split(blob, comments=True)
 
     data = {}
@@ -2865,5 +2873,21 @@ def udevadm_settle(exists=None, timeout=None):
 
     return subp(settle_cmd)
 
+
+def get_proc_ppid(pid):
+    """
+    Return the parent pid of a process.
+    """
+    ppid = 0
+    try:
+        contents = load_file("/proc/%s/stat" % pid, quiet=True)
+    except IOError as e:
+        LOG.warning('Failed to load /proc/%s/stat. %s', pid, e)
+    if contents:
+        parts = contents.split(" ", 4)
+        # man proc says
+        #  ppid %d     (4) The PID of the parent.
+        ppid = int(parts[3])
+    return ppid
 
 # vi: ts=4 expandtab

@@ -407,7 +407,7 @@ class TestNetCfgDistroUbuntuNetplan(TestNetCfgDistroBase):
             self.assertEqual(0o644, get_mode(cfgpath, tmpd))
 
     def netplan_path(self):
-            return '/etc/netplan/50-cloud-init.yaml'
+        return '/etc/netplan/50-cloud-init.yaml'
 
     def test_apply_network_config_v1_to_netplan_ub(self):
         expected_cfgs = {
@@ -468,6 +468,7 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 NETMASK=255.255.255.0
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -476,6 +477,7 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 DEVICE=eth1
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -494,11 +496,13 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 BOOTPROTO=none
                 DEFROUTE=yes
                 DEVICE=eth0
+                IPADDR6=2607:f0d0:1002:0011::2/64
                 IPV6ADDR=2607:f0d0:1002:0011::2/64
                 IPV6INIT=yes
                 IPV6_DEFAULTGW=2607:f0d0:1002:0011::1
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -507,6 +511,7 @@ class TestNetCfgDistroRedhat(TestNetCfgDistroBase):
                 DEVICE=eth1
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -559,6 +564,7 @@ class TestNetCfgDistroOpensuse(TestNetCfgDistroBase):
                 NETMASK=255.255.255.0
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -567,6 +573,7 @@ class TestNetCfgDistroOpensuse(TestNetCfgDistroBase):
                 DEVICE=eth1
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
                 """),
@@ -582,11 +589,13 @@ class TestNetCfgDistroOpensuse(TestNetCfgDistroBase):
                 BOOTPROTO=none
                 DEFROUTE=yes
                 DEVICE=eth0
+                IPADDR6=2607:f0d0:1002:0011::2/64
                 IPV6ADDR=2607:f0d0:1002:0011::2/64
                 IPV6INIT=yes
                 IPV6_DEFAULTGW=2607:f0d0:1002:0011::1
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
             """),
@@ -595,6 +604,7 @@ class TestNetCfgDistroOpensuse(TestNetCfgDistroBase):
                 DEVICE=eth1
                 NM_CONTROLLED=no
                 ONBOOT=yes
+                STARTMODE=auto
                 TYPE=Ethernet
                 USERCTL=no
             """),
@@ -602,6 +612,92 @@ class TestNetCfgDistroOpensuse(TestNetCfgDistroBase):
         self._apply_and_verify(self.distro.apply_network_config,
                                V1_NET_CFG_IPV6,
                                expected_cfgs=expected_cfgs.copy())
+
+
+class TestNetCfgDistroArch(TestNetCfgDistroBase):
+    def setUp(self):
+        super(TestNetCfgDistroArch, self).setUp()
+        self.distro = self._get_distro('arch', renderers=['netplan'])
+
+    def _apply_and_verify(self, apply_fn, config, expected_cfgs=None,
+                          bringup=False, with_netplan=False):
+        if not expected_cfgs:
+            raise ValueError('expected_cfg must not be None')
+
+        tmpd = None
+        with mock.patch('cloudinit.net.netplan.available',
+                        return_value=with_netplan):
+            with self.reRooted(tmpd) as tmpd:
+                apply_fn(config, bringup)
+
+        results = dir2dict(tmpd)
+        for cfgpath, expected in expected_cfgs.items():
+            print("----------")
+            print(expected)
+            print("^^^^ expected | rendered VVVVVVV")
+            print(results[cfgpath])
+            print("----------")
+            self.assertEqual(expected, results[cfgpath])
+            self.assertEqual(0o644, get_mode(cfgpath, tmpd))
+
+    def netctl_path(self, iface):
+        return '/etc/netctl/%s' % iface
+
+    def netplan_path(self):
+        return '/etc/netplan/50-cloud-init.yaml'
+
+    def test_apply_network_config_v1_without_netplan(self):
+        # Note that this is in fact an invalid netctl config:
+        #  "Address=None/None"
+        # But this is what the renderer has been writing out for a long time,
+        # and the test's purpose is to assert that the netctl renderer is
+        # still being used in absence of netplan, not the correctness of the
+        # rendered netctl config.
+        expected_cfgs = {
+            self.netctl_path('eth0'): dedent("""\
+                Address=192.168.1.5/255.255.255.0
+                Connection=ethernet
+                DNS=()
+                Gateway=192.168.1.254
+                IP=static
+                Interface=eth0
+                """),
+            self.netctl_path('eth1'): dedent("""\
+                Address=None/None
+                Connection=ethernet
+                DNS=()
+                Gateway=
+                IP=dhcp
+                Interface=eth1
+                """),
+            }
+
+        # ub_distro.apply_network_config(V1_NET_CFG, False)
+        self._apply_and_verify(self.distro.apply_network_config,
+                               V1_NET_CFG,
+                               expected_cfgs=expected_cfgs.copy(),
+                               with_netplan=False)
+
+    def test_apply_network_config_v1_with_netplan(self):
+        expected_cfgs = {
+            self.netplan_path(): dedent("""\
+                # generated by cloud-init
+                network:
+                    version: 2
+                    ethernets:
+                        eth0:
+                            addresses:
+                            - 192.168.1.5/24
+                            gateway4: 192.168.1.254
+                        eth1:
+                            dhcp4: true
+                """),
+        }
+
+        self._apply_and_verify(self.distro.apply_network_config,
+                               V1_NET_CFG,
+                               expected_cfgs=expected_cfgs.copy(),
+                               with_netplan=True)
 
 
 def get_mode(path, target=None):

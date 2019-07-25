@@ -41,7 +41,7 @@ from cloudinit.settings import (PER_INSTANCE, PER_ALWAYS, PER_ONCE,
 from cloudinit import atomic_helper
 
 from cloudinit.config import cc_set_hostname
-from cloudinit.dhclient_hook import LogDhclient
+from cloudinit import dhclient_hook
 
 
 # Welcome message template
@@ -586,12 +586,6 @@ def main_single(name, args):
         return 0
 
 
-def dhclient_hook(name, args):
-    record = LogDhclient(args)
-    record.check_hooks_dir()
-    record.record()
-
-
 def status_wrapper(name, args, data_d=None, link_d=None):
     if data_d is None:
         data_d = os.path.normpath("/var/lib/cloud/data")
@@ -638,13 +632,14 @@ def status_wrapper(name, args, data_d=None, link_d=None):
         'start': None,
         'finished': None,
     }
+
     if status is None:
         status = {'v1': {}}
-        for m in modes:
-            status['v1'][m] = nullstatus.copy()
         status['v1']['datasource'] = None
-    elif mode not in status['v1']:
-        status['v1'][mode] = nullstatus.copy()
+
+    for m in modes:
+        if m not in status['v1']:
+            status['v1'][m] = nullstatus.copy()
 
     v1 = status['v1']
     v1['stage'] = mode
@@ -795,15 +790,9 @@ def main(sysv_args=None):
         'query',
         help='Query standardized instance metadata from the command line.')
 
-    parser_dhclient = subparsers.add_parser('dhclient-hook',
-                                            help=('run the dhclient hook'
-                                                  'to record network info'))
-    parser_dhclient.add_argument("net_action",
-                                 help=('action taken on the interface'))
-    parser_dhclient.add_argument("net_interface",
-                                 help=('the network interface being acted'
-                                       ' upon'))
-    parser_dhclient.set_defaults(action=('dhclient_hook', dhclient_hook))
+    parser_dhclient = subparsers.add_parser(
+        dhclient_hook.NAME, help=dhclient_hook.__doc__)
+    dhclient_hook.get_parser(parser_dhclient)
 
     parser_features = subparsers.add_parser('features',
                                             help=('list defined features'))

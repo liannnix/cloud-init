@@ -89,7 +89,7 @@ def handle(name, cfg, cloud, log, args):
         packages.append('lxd')
 
     if init_cfg.get("storage_backend") == "zfs" and not util.which('zfs'):
-        packages.append('zfs')
+        packages.append('zfsutils-linux')
 
     if len(packages):
         try:
@@ -152,7 +152,7 @@ def handle(name, cfg, cloud, log, args):
 
             if cmd_attach:
                 log.debug("Setting up default lxd bridge: %s" %
-                          " ".join(cmd_create))
+                          " ".join(cmd_attach))
                 _lxc(cmd_attach)
 
     elif bridge_cfg:

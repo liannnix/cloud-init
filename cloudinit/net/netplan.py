@@ -114,13 +114,13 @@ def _extract_addresses(config, entry, ifname):
             for route in subnet.get('routes', []):
                 to_net = "%s/%s" % (route.get('network'),
                                     route.get('prefix'))
-                route = {
+                new_route = {
                     'via': route.get('gateway'),
                     'to': to_net,
                 }
                 if 'metric' in route:
-                    route.update({'metric': route.get('metric', 100)})
-                routes.append(route)
+                    new_route.update({'metric': route.get('metric', 100)})
+                routes.append(new_route)
 
             addresses.append(addr)
 
@@ -361,7 +361,8 @@ class Renderer(renderer.Renderer):
             if section:
                 dump = util.yaml_dumps({name: section},
                                        explicit_start=False,
-                                       explicit_end=False)
+                                       explicit_end=False,
+                                       noalias=True)
                 txt = util.indent(dump, ' ' * 4)
                 return [txt]
             return []
