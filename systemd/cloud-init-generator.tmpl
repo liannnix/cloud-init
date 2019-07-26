@@ -11,7 +11,7 @@ FOUND="found"
 NOTFOUND="notfound"
 RUN_ENABLED_FILE="$LOG_D/$ENABLE"
 {% if variant in ["suse"] %}
-CLOUD_SYSTEM_TARGET="/usr/lib/systemd/system/cloud-init.target"
+CLOUD_SYSTEM_TARGET="/lib/systemd/system/cloud-init.target"
 {% else %}
 CLOUD_SYSTEM_TARGET="/lib/systemd/system/cloud-init.target"
 {% endif %}

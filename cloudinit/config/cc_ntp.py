@@ -78,7 +78,7 @@ DISTRO_CLIENT_CONFIG = {
             'service_name': 'ntpd',
         },
         'systemd-timesyncd': {
-            'check_exe': '/usr/lib/systemd/systemd-timesyncd',
+            'check_exe': '/lib/systemd/systemd-timesyncd',
         },
     },
     'sles': {
