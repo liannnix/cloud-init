@@ -39,6 +39,7 @@ Requires: procps
 Requires: iproute net-tools
 Requires: shadow-utils
 Requires: /bin/run-parts
+Requires: netplan
 # add not autoreq'ed
 %py_requires Cheetah
 %py_requires jinja2
