@@ -13,7 +13,7 @@ NAME_TO_RENDERER = {
     "etcnet": etcnet,
 }
 
-DEFAULT_PRIORITY = ["eni", "sysconfig", "netplan", "etcnet"]
+DEFAULT_PRIORITY = ["eni", "sysconfig", "etcnet", "netplan"]
 
 
 def search(priority=None, target=None, first=False):
