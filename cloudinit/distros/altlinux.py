@@ -78,6 +78,13 @@ class Distro(distros.Distro):
         self._runner = helpers.Runners(paths)
         self.osfamily = 'altlinux'
         cfg['ssh_svcname'] = 'sshd'
+        self.network_conf_fn = {
+            "netplan": "/etc/netplan/50-cloud-init.yaml"
+        }
+        self.renderer_configs = {
+            "netplan": {"netplan_path": self.network_conf_fn["netplan"],
+                        "postcmds": True}
+        }
 
     def install_packages(self, pkglist):
         self.package_command('install', pkgs=pkglist)
