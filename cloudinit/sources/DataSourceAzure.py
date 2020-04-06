@@ -26,9 +26,15 @@ from cloudinit.url_helper import UrlError, readurl, retry_on_url_exc
 from cloudinit import util
 from cloudinit.reporting import events
 
-from cloudinit.sources.helpers.azure import (azure_ds_reporter,
-                                             azure_ds_telemetry_reporter,
-                                             get_metadata_from_fabric)
+from cloudinit.sources.helpers.azure import (
+    azure_ds_reporter,
+    azure_ds_telemetry_reporter,
+    get_metadata_from_fabric,
+    get_boot_telemetry,
+    get_system_info,
+    report_diagnostic_event,
+    EphemeralDHCPv4WithReporting,
+    is_byte_swapped)
 
 LOG = logging.getLogger(__name__)
 
@@ -349,16 +355,16 @@ class DataSourceAzure(sources.DataSource):
         for pk in self.cfg.get('_pubkeys', []):
             if pk.get('value', None):
                 key_value = pk['value']
-                LOG.debug("ssh authentication: using value from fabric")
+                LOG.debug("SSH authentication: using value from fabric")
             else:
                 bname = str(pk['fingerprint'] + ".crt")
                 fp_files += [os.path.join(ddir, bname)]
-                LOG.debug("ssh authentication: "
-                          "using fingerprint from fabirc")
+                LOG.debug("SSH authentication: "
+                          "using fingerprint from fabric")
 
         with events.ReportEventStack(
                 name="waiting-for-ssh-public-key",
-                description="wait for agents to retrieve ssh keys",
+                description="wait for agents to retrieve SSH keys",
                 parent=azure_ds_reporter):
             # wait very long for public SSH keys to arrive
             # https://bugs.launchpad.net/cloud-init/+bug/1717611
@@ -419,12 +425,17 @@ class DataSourceAzure(sources.DataSource):
                     ret = load_azure_ds_dir(cdev)
 
             except NonAzureDataSource:
+                report_diagnostic_event(
+                    "Did not find Azure data source in %s" % cdev)
                 continue
             except BrokenAzureDataSource as exc:
                 msg = 'BrokenAzureDataSource: %s' % exc
+                report_diagnostic_event(msg)
                 raise sources.InvalidMetaDataException(msg)
             except util.MountFailedError:
-                LOG.warning("%s was not mountable", cdev)
+                msg = '%s was not mountable' % cdev
+                report_diagnostic_event(msg)
+                LOG.warning(msg)
                 continue
 
             perform_reprovision = reprovision or self._should_reprovision(ret)
@@ -432,6 +443,7 @@ class DataSourceAzure(sources.DataSource):
                 if util.is_FreeBSD():
                     msg = "Free BSD is not supported for PPS VMs"
                     LOG.error(msg)
+                    report_diagnostic_event(msg)
                     raise sources.InvalidMetaDataException(msg)
                 ret = self._reprovision()
             imds_md = get_metadata_from_imds(
@@ -450,7 +462,9 @@ class DataSourceAzure(sources.DataSource):
             break
 
         if not found:
-            raise sources.InvalidMetaDataException('No Azure metadata found')
+            msg = 'No Azure metadata found'
+            report_diagnostic_event(msg)
+            raise sources.InvalidMetaDataException(msg)
 
         if found == ddir:
             LOG.debug("using files cached in %s", ddir)
@@ -458,8 +472,7 @@ class DataSourceAzure(sources.DataSource):
         seed = _get_random_seed()
         if seed:
             crawled_data['metadata']['random_seed'] = seed
-        crawled_data['metadata']['instance-id'] = util.read_dmi_data(
-            'system-uuid')
+        crawled_data['metadata']['instance-id'] = self._iid()
 
         if perform_reprovision:
             LOG.info("Reporting ready to Azure after getting ReprovisionData")
@@ -469,9 +482,14 @@ class DataSourceAzure(sources.DataSource):
                 self._report_ready(lease=self._ephemeral_dhcp_ctx.lease)
                 self._ephemeral_dhcp_ctx.clean_network()  # Teardown ephemeral
             else:
-                with EphemeralDHCPv4() as lease:
-                    self._report_ready(lease=lease)
-
+                try:
+                    with EphemeralDHCPv4WithReporting(
+                            azure_ds_reporter) as lease:
+                        self._report_ready(lease=lease)
+                except Exception as e:
+                    report_diagnostic_event(
+                        "exception while reporting ready: %s" % e)
+                    raise
         return crawled_data
 
     def _is_platform_viable(self):
@@ -492,6 +510,16 @@ class DataSourceAzure(sources.DataSource):
         """
         if not self._is_platform_viable():
             return False
+        try:
+            get_boot_telemetry()
+        except Exception as e:
+            LOG.warning("Failed to get boot telemetry: %s", e)
+
+        try:
+            get_system_info()
+        except Exception as e:
+            LOG.warning("Failed to get system information: %s", e)
+
         try:
             crawled_data = util.log_time(
                         logfunc=LOG.debug, msg='Crawl of metadata service',
@@ -530,6 +558,16 @@ class DataSourceAzure(sources.DataSource):
         # quickly (local check only) if self.instance_id is still valid
         return sources.instance_id_matches_system_uuid(self.get_instance_id())
 
+    def _iid(self, previous=None):
+        prev_iid_path = os.path.join(
+            self.paths.get_cpath('data'), 'instance-id')
+        iid = util.read_dmi_data('system-uuid')
+        if os.path.exists(prev_iid_path):
+            previous = util.load_file(prev_iid_path).strip()
+            if is_byte_swapped(previous, iid):
+                return previous
+        return iid
+
     @azure_ds_telemetry_reporter
     def setup(self, is_new_instance):
         if self._negotiated is False:
@@ -551,27 +589,55 @@ class DataSourceAzure(sources.DataSource):
         headers = {"Metadata": "true"}
         nl_sock = None
         report_ready = bool(not os.path.isfile(REPORTED_READY_MARKER_FILE))
+        self.imds_logging_threshold = 1
+        self.imds_poll_counter = 1
+        dhcp_attempts = 0
+        vnet_switched = False
+        return_val = None
 
         def exc_cb(msg, exception):
             if isinstance(exception, UrlError) and exception.code == 404:
+                if self.imds_poll_counter == self.imds_logging_threshold:
+                    # Reducing the logging frequency as we are polling IMDS
+                    self.imds_logging_threshold *= 2
+                    LOG.debug("Call to IMDS with arguments %s failed "
+                              "with status code %s after %s retries",
+                              msg, exception.code, self.imds_poll_counter)
+                    LOG.debug("Backing off logging threshold for the same "
+                              "exception to %d", self.imds_logging_threshold)
+                self.imds_poll_counter += 1
                 return True
+
             # If we get an exception while trying to call IMDS, we
             # call DHCP and setup the ephemeral network to acquire the new IP.
+            LOG.debug("Call to IMDS with arguments %s failed  with "
+                      "status code %s", msg, exception.code)
+            report_diagnostic_event("polling IMDS failed with exception %s"
+                                    % exception.code)
             return False
 
         LOG.debug("Wait for vnetswitch to happen")
         while True:
             try:
-                # Save our EphemeralDHCPv4 context so we avoid repeated dhcp
-                self._ephemeral_dhcp_ctx = EphemeralDHCPv4()
-                lease = self._ephemeral_dhcp_ctx.obtain_lease()
+                # Save our EphemeralDHCPv4 context to avoid repeated dhcp
+                with events.ReportEventStack(
+                        name="obtain-dhcp-lease",
+                        description="obtain dhcp lease",
+                        parent=azure_ds_reporter):
+                    self._ephemeral_dhcp_ctx = EphemeralDHCPv4()
+                    lease = self._ephemeral_dhcp_ctx.obtain_lease()
+
+                if vnet_switched:
+                    dhcp_attempts += 1
                 if report_ready:
                     try:
                         nl_sock = netlink.create_bound_netlink_socket()
                     except netlink.NetlinkCreateSocketError as e:
+                        report_diagnostic_event(e)
                         LOG.warning(e)
                         self._ephemeral_dhcp_ctx.clean_network()
-                        return
+                        break
+
                     path = REPORTED_READY_MARKER_FILE
                     LOG.info(
                         "Creating a marker file to report ready: %s", path)
@@ -579,17 +645,33 @@ class DataSourceAzure(sources.DataSource):
                         pid=os.getpid(), time=time()))
                     self._report_ready(lease=lease)
                     report_ready = False
-                    try:
-                        netlink.wait_for_media_disconnect_connect(
-                            nl_sock, lease['interface'])
-                    except AssertionError as error:
-                        LOG.error(error)
-                        return
+
+                    with events.ReportEventStack(
+                            name="wait-for-media-disconnect-connect",
+                            description="wait for vnet switch",
+                            parent=azure_ds_reporter):
+                        try:
+                            netlink.wait_for_media_disconnect_connect(
+                                nl_sock, lease['interface'])
+                        except AssertionError as error:
+                            report_diagnostic_event(error)
+                            LOG.error(error)
+                            break
+
+                    vnet_switched = True
                     self._ephemeral_dhcp_ctx.clean_network()
                 else:
-                    return readurl(url, timeout=IMDS_TIMEOUT_IN_SECONDS,
-                                   headers=headers, exception_cb=exc_cb,
-                                   infinite=True, log_req_resp=False).contents
+                    with events.ReportEventStack(
+                            name="get-reprovision-data-from-imds",
+                            description="get reprovision data from imds",
+                            parent=azure_ds_reporter):
+                        return_val = readurl(url,
+                                             timeout=IMDS_TIMEOUT_IN_SECONDS,
+                                             headers=headers,
+                                             exception_cb=exc_cb,
+                                             infinite=True,
+                                             log_req_resp=False).contents
+                    break
             except UrlError:
                 # Teardown our EphemeralDHCPv4 context on failure as we retry
                 self._ephemeral_dhcp_ctx.clean_network()
@@ -597,6 +679,14 @@ class DataSourceAzure(sources.DataSource):
             finally:
                 if nl_sock:
                     nl_sock.close()
+
+        if vnet_switched:
+            report_diagnostic_event("attempted dhcp %d times after reuse" %
+                                    dhcp_attempts)
+            report_diagnostic_event("polled imds %d times after reuse" %
+                                    self.imds_poll_counter)
+
+        return return_val
 
     @azure_ds_telemetry_reporter
     def _report_ready(self, lease):
@@ -666,9 +756,12 @@ class DataSourceAzure(sources.DataSource):
                   self.ds_cfg['agent_command'])
         try:
             fabric_data = metadata_func()
-        except Exception:
+        except Exception as e:
+            report_diagnostic_event(
+                "Error communicating with Azure fabric; You may experience "
+                "connectivity issues: %s" % e)
             LOG.warning(
-                "Error communicating with Azure fabric; You may experience."
+                "Error communicating with Azure fabric; You may experience "
                 "connectivity issues.", exc_info=True)
             return False
 
@@ -1027,7 +1120,9 @@ def read_azure_ovf(contents):
     try:
         dom = minidom.parseString(contents)
     except Exception as e:
-        raise BrokenAzureDataSource("Invalid ovf-env.xml: %s" % e)
+        error_str = "Invalid ovf-env.xml: %s" % e
+        report_diagnostic_event(error_str)
+        raise BrokenAzureDataSource(error_str)
 
     results = find_child(dom.documentElement,
                          lambda n: n.localName == "ProvisioningSection")
@@ -1108,9 +1203,10 @@ def read_azure_ovf(contents):
     defuser = {}
     if username:
         defuser['name'] = username
-    if password and DEF_PASSWD_REDACTION != password:
-        defuser['passwd'] = encrypt_pass(password)
+    if password:
         defuser['lock_passwd'] = False
+        if DEF_PASSWD_REDACTION != password:
+            defuser['passwd'] = encrypt_pass(password)
 
     if defuser:
         cfg['system_info'] = {'default_user': defuser}
@@ -1235,27 +1331,35 @@ def parse_network_config(imds_metadata):
             LOG.debug('Azure: generating network configuration from IMDS')
             network_metadata = imds_metadata['network']
             for idx, intf in enumerate(network_metadata['interface']):
+                # First IPv4 and/or IPv6 address will be obtained via DHCP.
+                # Any additional IPs of each type will be set as static
+                # addresses.
                 nicname = 'eth{idx}'.format(idx=idx)
-                dev_config = {}
-                for addr4 in intf['ipv4']['ipAddress']:
-                    privateIpv4 = addr4['privateIpAddress']
-                    if privateIpv4:
-                        if dev_config.get('dhcp4', False):
-                            # Append static address config for nic > 1
-                            netPrefix = intf['ipv4']['subnet'][0].get(
-                                'prefix', '24')
-                            if not dev_config.get('addresses'):
-                                dev_config['addresses'] = []
-                            dev_config['addresses'].append(
-                                '{ip}/{prefix}'.format(
-                                    ip=privateIpv4, prefix=netPrefix))
-                        else:
-                            dev_config['dhcp4'] = True
-                for addr6 in intf['ipv6']['ipAddress']:
-                    privateIpv6 = addr6['privateIpAddress']
-                    if privateIpv6:
-                        dev_config['dhcp6'] = True
-                        break
+                dhcp_override = {'route-metric': (idx + 1) * 100}
+                dev_config = {'dhcp4': True, 'dhcp4-overrides': dhcp_override,
+                              'dhcp6': False}
+                for addr_type in ('ipv4', 'ipv6'):
+                    addresses = intf.get(addr_type, {}).get('ipAddress', [])
+                    if addr_type == 'ipv4':
+                        default_prefix = '24'
+                    else:
+                        default_prefix = '128'
+                        if addresses:
+                            dev_config['dhcp6'] = True
+                            # non-primary interfaces should have a higher
+                            # route-metric (cost) so default routes prefer
+                            # primary nic due to lower route-metric value
+                            dev_config['dhcp6-overrides'] = dhcp_override
+                    for addr in addresses[1:]:
+                        # Append static address config for ip > 1
+                        netPrefix = intf[addr_type]['subnet'][0].get(
+                            'prefix', default_prefix)
+                        privateIp = addr['privateIpAddress']
+                        if not dev_config.get('addresses'):
+                            dev_config['addresses'] = []
+                        dev_config['addresses'].append(
+                            '{ip}/{prefix}'.format(
+                                ip=privateIp, prefix=netPrefix))
                 if dev_config:
                     mac = ':'.join(re.findall(r'..', intf['macAddress']))
                     dev_config.update(
@@ -1294,8 +1398,13 @@ def get_metadata_from_imds(fallback_nic, retries):
     if net.is_up(fallback_nic):
         return util.log_time(**kwargs)
     else:
-        with EphemeralDHCPv4(fallback_nic):
-            return util.log_time(**kwargs)
+        try:
+            with EphemeralDHCPv4WithReporting(
+                    azure_ds_reporter, fallback_nic):
+                return util.log_time(**kwargs)
+        except Exception as e:
+            report_diagnostic_event("exception while getting metadata: %s" % e)
+            raise
 
 
 @azure_ds_telemetry_reporter
@@ -1308,11 +1417,14 @@ def _get_metadata_from_imds(retries):
             url, timeout=IMDS_TIMEOUT_IN_SECONDS, headers=headers,
             retries=retries, exception_cb=retry_on_url_exc)
     except Exception as e:
-        LOG.debug('Ignoring IMDS instance metadata: %s', e)
+        msg = 'Ignoring IMDS instance metadata: %s' % e
+        report_diagnostic_event(msg)
+        LOG.debug(msg)
         return {}
     try:
         return util.load_json(str(response))
-    except json.decoder.JSONDecodeError:
+    except json.decoder.JSONDecodeError as e:
+        report_diagnostic_event('non-json imds response' % e)
         LOG.warning(
             'Ignoring non-json IMDS instance metadata: %s', str(response))
     return {}
@@ -1365,8 +1477,10 @@ def _is_platform_viable(seed_dir):
         asset_tag = util.read_dmi_data('chassis-asset-tag')
         if asset_tag == AZURE_CHASSIS_ASSET_TAG:
             return True
-        LOG.debug("Non-Azure DMI asset tag '%s' discovered.", asset_tag)
-        evt.description = "Non-Azure DMI asset tag '%s' discovered.", asset_tag
+        msg = "Non-Azure DMI asset tag '%s' discovered." % asset_tag
+        LOG.debug(msg)
+        evt.description = msg
+        report_diagnostic_event(msg)
         if os.path.exists(os.path.join(seed_dir, 'ovf-env.xml')):
             return True
         return False

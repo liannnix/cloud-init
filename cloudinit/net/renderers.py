@@ -1,6 +1,7 @@
 # This file is part of cloud-init. See LICENSE file for license information.
 
 from . import eni
+from . import freebsd
 from . import netplan
 from . import RendererNotFoundError
 from . import sysconfig
@@ -8,12 +9,13 @@ from . import etcnet
 
 NAME_TO_RENDERER = {
     "eni": eni,
+    "freebsd": freebsd,
     "netplan": netplan,
     "sysconfig": sysconfig,
     "etcnet": etcnet,
 }
 
-DEFAULT_PRIORITY = ["eni", "sysconfig", "etcnet", "netplan"]
+DEFAULT_PRIORITY = ["eni", "sysconfig", "etcnet", "netplan", "freebsd"]
 
 
 def search(priority=None, target=None, first=False):

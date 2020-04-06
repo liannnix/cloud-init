@@ -12,15 +12,12 @@ import copy
 import functools
 import os
 
-import six
-
 from cloudinit import ec2_utils
 from cloudinit import log as logging
 from cloudinit import net
 from cloudinit import sources
 from cloudinit import url_helper
 from cloudinit import util
-
 from cloudinit.sources import BrokenMetadata
 
 # See https://docs.openstack.org/user-guide/cli-config-drive.html
@@ -163,8 +160,7 @@ class SourceMixin(object):
             return device
 
 
-@six.add_metaclass(abc.ABCMeta)
-class BaseReader(object):
+class BaseReader(metaclass=abc.ABCMeta):
 
     def __init__(self, base_path):
         self.base_path = base_path
@@ -227,7 +223,7 @@ class BaseReader(object):
         """
 
         load_json_anytype = functools.partial(
-            util.load_json, root_types=(dict, list) + six.string_types)
+            util.load_json, root_types=(dict, list, str))
 
         def datafiles(version):
             files = {}
@@ -584,16 +580,24 @@ def convert_net_json(network_json=None, known_macs=None):
                         if n['link'] == link['id']]:
             subnet = dict((k, v) for k, v in network.items()
                           if k in valid_keys['subnet'])
-            if 'dhcp' in network['type']:
-                t = 'dhcp6' if network['type'].startswith('ipv6') else 'dhcp4'
-                subnet.update({
-                    'type': t,
-                })
-            else:
+
+            if network['type'] == 'ipv4_dhcp':
+                subnet.update({'type': 'dhcp4'})
+            elif network['type'] == 'ipv6_dhcp':
+                subnet.update({'type': 'dhcp6'})
+            elif network['type'] in ['ipv6_slaac', 'ipv6_dhcpv6-stateless',
+                                     'ipv6_dhcpv6-stateful']:
+                subnet.update({'type': network['type']})
+            elif network['type'] in ['ipv4', 'ipv6']:
                 subnet.update({
                     'type': 'static',
                     'address': network.get('ip_address'),
                 })
+
+            # Enable accept_ra for stateful and legacy ipv6_dhcp types
+            if network['type'] in ['ipv6_dhcpv6-stateful', 'ipv6_dhcp']:
+                cfg.update({'accept-ra': True})
+
             if network['type'] == 'ipv4':
                 subnet['ipv4'] = True
             if network['type'] == 'ipv6':
