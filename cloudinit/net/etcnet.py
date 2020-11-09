@@ -58,14 +58,14 @@ class Renderer(renderer.Renderer):
                 o = res.get('address', [])
                 o.append("%s/%s" % (s['address'], s['prefix']))
                 res['address'] = o
-                if s.has_key('gateway'):
+                if 'gateway' in s:
                     res['gateway'] = "default via %s" % s['gateway']
 
-            if res.has_key('address'):
+            if 'address' in res:
                 path = ipv4_path % ({'base': base_etcnet_dir, 'name': iface_name})
                 content[path] = '\n'.join(res['address'])
 
-            if res.has_key('gateway'):
+            if 'gateway' in res:
                 path = ipv4r_path % ({'base': base_etcnet_dir, 'name': iface_name})
                 content[path] = res['gateway']
 
