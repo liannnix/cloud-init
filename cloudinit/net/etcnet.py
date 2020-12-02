@@ -4,6 +4,7 @@ import os
 
 from cloudinit.distros.parsers import resolv_conf
 from cloudinit import util
+from cloudinit import subp
 
 from . import renderer
 
@@ -83,7 +84,7 @@ class Renderer(renderer.Renderer):
         return content
 
     def render_network_state(self, network_state, templates=None, target=None):
-        base_etcnet_dir = util.target_path(target, self.etcnet_dir)
+        base_etcnet_dir = subp.target_path(target, self.etcnet_dir)
         for path, data in self._render_etcnet(base_etcnet_dir,
                                               network_state).items():
             util.write_file(path, data)
@@ -93,7 +94,7 @@ def available(target=None):
     expected = ['ifup', 'ifdown']
     search = ['/sbin', '/usr/sbin']
     for p in expected:
-        if not util.which(p, search=search, target=target):
+        if not subp.which(p, search=search, target=target):
             return False
 
     expected_paths = [
@@ -105,7 +106,7 @@ def available(target=None):
         'etc/net/scripts/functions-vlan',
         'etc/net/scripts/ifdown']
     for p in expected_paths:
-        if not os.path.isfile(util.target_path(target, p)):
+        if not os.path.isfile(subp.target_path(target, p)):
             return False
     return True
 

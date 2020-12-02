@@ -216,7 +216,7 @@ def handle(_name, cfg, cloud, log, _args):
             try:
                 # TODO(harlowja): Is this guard needed?
                 with util.SeLinuxGuard("/etc/openssh", recursive=True):
-                    util.subp(cmd, capture=False)
+                    subp.subp(cmd, capture=False)
                 log.debug("Generated a key for %s from %s", pair[0], pair[1])
             except Exception:
                 util.logexc(log, "Failed generated a key for %s from %s",
