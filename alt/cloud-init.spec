@@ -1,8 +1,8 @@
 %def_enable check
 
 Name:    cloud-init
-Version: 20.1
-Release: alt2
+Version: 20.4
+Release: alt1
 
 Summary: Cloud instance init scripts
 Group:   System/Configuration/Boot and Init
@@ -145,6 +145,11 @@ make unittest
 %dir %_sharedstatedir/cloud
 
 %changelog
+* Wed Dec 02 2020 Mikhail Gordeev <obirvalger@altlinux.org> 20.4-alt1
+- Update to 20.4
+- Enable check
+- Fix not setting password via passwd field
+
 * Mon Nov 09 2020 Mikhail Gordeev <obirvalger@altlinux.org> 20.1-alt2
 - Fix dictionary key lookup for python3 (Closes: 38848)
 
