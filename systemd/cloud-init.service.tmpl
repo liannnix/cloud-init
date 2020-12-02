@@ -9,7 +9,7 @@ After=systemd-networkd-wait-online.service
 {% if variant in ["ubuntu", "unknown", "debian"] %}
 After=networking.service
 {% endif %}
-{% if variant in ["centos", "fedora", "redhat", "altlinux"] %}
+{% if variant in ["altlinux", "centos", "fedora", "rhel"] %}
 After=network.service
 After=NetworkManager.service
 {% endif %}
@@ -23,9 +23,11 @@ Before=network-online.target
 Before=sshd.service
 {% if variant in ["ubuntu", "unknown", "debian"] %}
 Before=sysinit.target
+Before=shutdown.target
 Conflicts=shutdown.target
 {% endif %}
 {% if variant in ["suse"] %}
+Before=shutdown.target
 Conflicts=shutdown.target
 {% endif %}
 Before=systemd-user-sessions.service

@@ -6,6 +6,7 @@ ConditionVirtualization=yes
 DefaultDependencies=no
 {% endif %}
 Wants=network-pre.target
+After=hv_kvp_daemon.service
 After=systemd-remount-fs.service
 Before=NetworkManager.service
 Before=network-pre.target
