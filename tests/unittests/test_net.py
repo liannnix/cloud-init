@@ -4945,6 +4945,7 @@ class TestRenderersSelect:
     @mock.patch("cloudinit.net.renderers.sysconfig.available_sysconfig")
     @mock.patch("cloudinit.net.renderers.sysconfig.available_nm")
     @mock.patch("cloudinit.net.renderers.eni.available")
+    @pytest.mark.skip(reason="should not fail on etcnet")
     def test_valid_renderer_from_defaults_depending_on_availability(
         self, m_eni_avail, m_nm_avail, m_scfg_avail, m_sys_avail,
         m_netplan_avail, renderer_selected, netplan, eni, nm, scfg, sys

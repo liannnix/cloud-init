@@ -371,23 +371,23 @@ class TestHandleSsh(CiTestCase):
 
             expected_calls.extend([
                 mock.call(
-                    '/etc/ssh/ssh_host_{}_key'.format(key_type),
+                    '/etc/openssh/ssh_host_{}_key'.format(key_type),
                     private_value,
                     384
                 ),
                 mock.call(
-                    '/etc/ssh/ssh_host_{}_key.pub'.format(key_type),
+                    '/etc/openssh/ssh_host_{}_key.pub'.format(key_type),
                     public_value,
                     384
                 ),
                 mock.call(
-                    '/etc/ssh/ssh_host_{}_key-cert.pub'.format(key_type),
+                    '/etc/openssh/ssh_host_{}_key-cert.pub'.format(key_type),
                     cert_value,
                     384
                 ),
                 mock.call(
-                    '/etc/ssh/sshd_config',
-                    ('HostCertificate /etc/ssh/ssh_host_{}_key-cert.pub'
+                    '/etc/openssh/sshd_config',
+                    ('HostCertificate /etc/openssh/ssh_host_{}_key-cert.pub'
                      '\n'.format(key_type)),
                     preserve_mode=True
                 )

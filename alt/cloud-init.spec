@@ -1,4 +1,4 @@
-%def_disable check
+%def_enable check
 
 Name:    cloud-init
 Version: 20.1
@@ -37,7 +37,8 @@ BuildRequires: python3-module-contextlib2 python3-module-prettytable
 BuildRequires: /proc
 BuildRequires: python3-module-requests python3-module-jsonpatch
 BuildRequires: python3-module-configobj python3-module-mock
-BuildRequires: python3-module-oauthlib rpm-build-vm
+BuildRequires: python3-module-oauthlib python3-module-pytest
+BuildRequires: shadow-utils passwd
 %endif
 
 Requires: sudo
@@ -101,9 +102,8 @@ rm -f %buildroot%_sysconfdir/cloud/templates/*.suse.*
 rm -f %buildroot%_sysconfdir/cloud/templates/*.ubuntu.*
 
 %check
-if [ -w /dev/kvm ]; then
-    vm-run make unittest3
-fi
+export PATH="$PATH:/usr/sbin"
+make unittest
 
 %post
 %post_service cloud-config
