@@ -561,6 +561,12 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
         * ``ssh_redirect_user``
         """
 
+        # Fix not setting password via passwd field for existing users
+        if not kwargs.get('hashed_passwd'):
+            if passwd := kwargs.get('passwd'):
+                kwargs['hashed_passwd'] = passwd
+                del kwargs['passwd']
+
         # Add a snap user, if requested
         if 'snapuser' in kwargs:
             return self.add_snap_user(name, **kwargs)

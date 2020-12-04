@@ -111,8 +111,23 @@ class TestCreateUser(CiTestCase):
         self.dist.create_user(user, passwd=password)
         self.assertEqual(
             m_subp.call_args_list,
-            [self._useradd2call([user, '--password', password, '-m']),
+            [self._useradd2call([user, '-m']),
+             mock.call(
+                 ['chpasswd', '-e'],
+                 f'{user}:{password}',
+                 logstring=f'chpasswd for {user}'),
              mock.call(['passwd', '-l', user])])
+
+    def test_set_root_password(self, m_subp, m_is_snappy):
+        user = 'root'
+        password = 'rootpass'
+        self.dist.create_user(user, lock_passwd=False, passwd=password)
+        print(m_subp.call_args_list)
+        self.assertEqual(m_subp.call_args_list,
+                         [mock.call(
+                             ['chpasswd', '-e'],
+                              f'{user}:{password}',
+                              logstring=f'chpasswd for {user}')])
 
     @mock.patch("cloudinit.distros.util.is_group")
     def test_group_added(self, m_is_group, m_subp, m_is_snappy):
