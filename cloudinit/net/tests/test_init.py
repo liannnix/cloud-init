@@ -391,6 +391,10 @@ class TestGetDeviceList(CiTestCase):
         self.assertCountEqual(['eth0', 'eth1'], net.get_devicelist())
 
 
+@mock.patch(
+    "cloudinit.net.is_openvswitch_internal_interface",
+    mock.Mock(return_value=False),
+)
 class TestGetInterfaceMAC(CiTestCase):
 
     def setUp(self):
@@ -702,18 +706,22 @@ class TestEphemeralIPV4Network(CiTestCase):
     def test_ephemeral_ipv4_network_with_rfc3442_static_routes(self, m_subp):
         params = {
             'interface': 'eth0', 'ip': '192.168.2.2',
-            'prefix_or_mask': '255.255.255.0', 'broadcast': '192.168.2.255',
-            'static_routes': [('169.254.169.254/32', '192.168.2.1'),
+            'prefix_or_mask': '255.255.255.255', 'broadcast': '192.168.2.255',
+            'static_routes': [('192.168.2.1/32', '0.0.0.0'),
+                              ('169.254.169.254/32', '192.168.2.1'),
                               ('0.0.0.0/0', '192.168.2.1')],
             'router': '192.168.2.1'}
         expected_setup_calls = [
             mock.call(
-                ['ip', '-family', 'inet', 'addr', 'add', '192.168.2.2/24',
+                ['ip', '-family', 'inet', 'addr', 'add', '192.168.2.2/32',
                  'broadcast', '192.168.2.255', 'dev', 'eth0'],
                 capture=True, update_env={'LANG': 'C'}),
             mock.call(
                 ['ip', '-family', 'inet', 'link', 'set', 'dev', 'eth0', 'up'],
                 capture=True),
+            mock.call(
+                ['ip', '-4', 'route', 'add', '192.168.2.1/32',
+                 'dev', 'eth0'], capture=True),
             mock.call(
                 ['ip', '-4', 'route', 'add', '169.254.169.254/32',
                  'via', '192.168.2.1', 'dev', 'eth0'], capture=True),
@@ -728,11 +736,14 @@ class TestEphemeralIPV4Network(CiTestCase):
                 ['ip', '-4', 'route', 'del', '169.254.169.254/32',
                  'via', '192.168.2.1', 'dev', 'eth0'], capture=True),
             mock.call(
+                ['ip', '-4', 'route', 'del', '192.168.2.1/32',
+                 'dev', 'eth0'], capture=True),
+            mock.call(
                 ['ip', '-family', 'inet', 'link', 'set', 'dev',
                  'eth0', 'down'], capture=True),
             mock.call(
                 ['ip', '-family', 'inet', 'addr', 'del',
-                 '192.168.2.2/24', 'dev', 'eth0'], capture=True)
+                 '192.168.2.2/32', 'dev', 'eth0'], capture=True)
         ]
         with net.EphemeralIPv4Network(**params):
             self.assertEqual(expected_setup_calls, m_subp.call_args_list)
@@ -1222,6 +1233,121 @@ class TestNetFailOver(CiTestCase):
         m_primary.return_value = False
         m_standby.return_value = False
         self.assertFalse(net.is_netfailover(devname, driver))
+
+
+class TestOpenvswitchIsInstalled:
+    """Test cloudinit.net.openvswitch_is_installed.
+
+    Uses the ``clear_lru_cache`` local autouse fixture to allow us to test
+    despite the ``lru_cache`` decorator on the unit under test.
+    """
+
+    @pytest.fixture(autouse=True)
+    def clear_lru_cache(self):
+        net.openvswitch_is_installed.cache_clear()
+
+    @pytest.mark.parametrize(
+        "expected,which_return", [(True, "/some/path"), (False, None)]
+    )
+    @mock.patch("cloudinit.net.subp.which")
+    def test_mirrors_which_result(self, m_which, expected, which_return):
+        m_which.return_value = which_return
+        assert expected == net.openvswitch_is_installed()
+
+    @mock.patch("cloudinit.net.subp.which")
+    def test_only_calls_which_once(self, m_which):
+        net.openvswitch_is_installed()
+        net.openvswitch_is_installed()
+        assert 1 == m_which.call_count
+
+
+@mock.patch("cloudinit.net.subp.subp", return_value=("", ""))
+class TestGetOVSInternalInterfaces:
+    """Test cloudinit.net.get_ovs_internal_interfaces.
+
+    Uses the ``clear_lru_cache`` local autouse fixture to allow us to test
+    despite the ``lru_cache`` decorator on the unit under test.
+    """
+    @pytest.fixture(autouse=True)
+    def clear_lru_cache(self):
+        net.get_ovs_internal_interfaces.cache_clear()
+
+    def test_command_used(self, m_subp):
+        """Test we use the correct command when we call subp"""
+        net.get_ovs_internal_interfaces()
+
+        assert [
+            mock.call(net.OVS_INTERNAL_INTERFACE_LOOKUP_CMD)
+        ] == m_subp.call_args_list
+
+    def test_subp_contents_split_and_returned(self, m_subp):
+        """Test that the command output is appropriately mangled."""
+        stdout = "iface1\niface2\niface3\n"
+        m_subp.return_value = (stdout, "")
+
+        assert [
+            "iface1",
+            "iface2",
+            "iface3",
+        ] == net.get_ovs_internal_interfaces()
+
+    def test_database_connection_error_handled_gracefully(self, m_subp):
+        """Test that the error indicating OVS is down is handled gracefully."""
+        m_subp.side_effect = ProcessExecutionError(
+            stderr="database connection failed"
+        )
+
+        assert [] == net.get_ovs_internal_interfaces()
+
+    def test_other_errors_raised(self, m_subp):
+        """Test that only database connection errors are handled."""
+        m_subp.side_effect = ProcessExecutionError()
+
+        with pytest.raises(ProcessExecutionError):
+            net.get_ovs_internal_interfaces()
+
+    def test_only_runs_once(self, m_subp):
+        """Test that we cache the value."""
+        net.get_ovs_internal_interfaces()
+        net.get_ovs_internal_interfaces()
+
+        assert 1 == m_subp.call_count
+
+
+@mock.patch("cloudinit.net.get_ovs_internal_interfaces")
+@mock.patch("cloudinit.net.openvswitch_is_installed")
+class TestIsOpenVSwitchInternalInterface:
+    def test_false_if_ovs_not_installed(
+        self, m_openvswitch_is_installed, _m_get_ovs_internal_interfaces
+    ):
+        """Test that OVS' absence returns False."""
+        m_openvswitch_is_installed.return_value = False
+
+        assert not net.is_openvswitch_internal_interface("devname")
+
+    @pytest.mark.parametrize(
+        "detected_interfaces,devname,expected_return",
+        [
+            ([], "devname", False),
+            (["notdevname"], "devname", False),
+            (["devname"], "devname", True),
+            (["some", "other", "devices", "and", "ours"], "ours", True),
+        ],
+    )
+    def test_return_value_based_on_detected_interfaces(
+        self,
+        m_openvswitch_is_installed,
+        m_get_ovs_internal_interfaces,
+        detected_interfaces,
+        devname,
+        expected_return,
+    ):
+        """Test that the detected interfaces are used correctly."""
+        m_openvswitch_is_installed.return_value = True
+        m_get_ovs_internal_interfaces.return_value = detected_interfaces
+        assert expected_return == net.is_openvswitch_internal_interface(
+            devname
+        )
 
 
 class TestIsIpAddress:

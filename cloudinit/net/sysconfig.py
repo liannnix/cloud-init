@@ -313,7 +313,8 @@ class Renderer(renderer.Renderer):
     }
 
     # If these keys exist, then their values will be used to form
-    # a BONDING_OPTS grouping; otherwise no grouping will be set.
+    # a BONDING_OPTS / BONDING_MODULE_OPTS grouping; otherwise no
+    # grouping will be set.
     bond_tpl_opts = tuple([
         ('bond_mode', "mode=%s"),
         ('bond_xmit_hash_policy', "xmit_hash_policy=%s"),
@@ -396,6 +397,13 @@ class Renderer(renderer.Renderer):
                         # Only IPv6 is DHCP, IPv4 may be static
                         iface_cfg['BOOTPROTO'] = 'dhcp6'
                     iface_cfg['DHCLIENT6_MODE'] = 'managed'
+                # only if rhel AND dhcpv6 stateful
+                elif (flavor == 'rhel' and
+                        subnet_type == 'ipv6_dhcpv6-stateful'):
+                    iface_cfg['BOOTPROTO'] = 'dhcp'
+                    iface_cfg['DHCPV6C'] = True
+                    iface_cfg['IPV6INIT'] = True
+                    iface_cfg['IPV6_AUTOCONF'] = False
                 else:
                     iface_cfg['IPV6INIT'] = True
                     # Configure network settings using DHCPv6
@@ -615,7 +623,7 @@ class Renderer(renderer.Renderer):
                             route_cfg[new_key] = route[old_key]
 
     @classmethod
-    def _render_bonding_opts(cls, iface_cfg, iface):
+    def _render_bonding_opts(cls, iface_cfg, iface, flavor):
         bond_opts = []
         for (bond_key, value_tpl) in cls.bond_tpl_opts:
             # Seems like either dash or underscore is possible?
@@ -628,7 +636,18 @@ class Renderer(renderer.Renderer):
                     bond_opts.append(value_tpl % (bond_value))
                     break
         if bond_opts:
-            iface_cfg['BONDING_OPTS'] = " ".join(bond_opts)
+            if flavor == 'suse':
+                # suse uses the sysconfig support which requires
+                # BONDING_MODULE_OPTS see
+                # https://www.kernel.org/doc/Documentation/networking/bonding.txt
+                # 3.1 Configuration with Sysconfig Support
+                iface_cfg['BONDING_MODULE_OPTS'] = " ".join(bond_opts)
+            else:
+                # rhel uses initscript support and thus requires BONDING_OPTS
+                # this is also the old default see
+                # https://www.kernel.org/doc/Documentation/networking/bonding.txt
+                #  3.2 Configuration with Initscripts Support
+                iface_cfg['BONDING_OPTS'] = " ".join(bond_opts)
 
     @classmethod
     def _render_physical_interfaces(
@@ -656,7 +675,7 @@ class Renderer(renderer.Renderer):
         for iface in network_state.iter_interfaces(bond_filter):
             iface_name = iface['name']
             iface_cfg = iface_contents[iface_name]
-            cls._render_bonding_opts(iface_cfg, iface)
+            cls._render_bonding_opts(iface_cfg, iface, flavor)
 
             # Ensure that the master interface (and any of its children)
             # are actually marked as being bond types...
