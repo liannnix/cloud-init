@@ -172,10 +172,6 @@ class TestConfig(TestCase):
             self.assertEqual(self.mock_remove.call_count, 1)
 
 
-@pytest.mark.skipif(
-    not os.path.isfile(cc_ca_certs.CA_CERT_PATH),
-    reason="Does not work without ca cert config",
-)
 class TestAddCaCerts(TestCase):
 
     def setUp(self):
