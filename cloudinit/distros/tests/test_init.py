@@ -6,15 +6,17 @@
 """Tests for cloudinit/distros/__init__.py"""
 
 from unittest import mock
+from urllib.parse import _UNSAFE_URL_BYTES_TO_REMOVE
 
 import pytest
 
 from cloudinit.distros import _get_package_mirror_info, LDH_ASCII_CHARS
 
 
+SKIPED_CHARS = LDH_ASCII_CHARS + ''.join(_UNSAFE_URL_BYTES_TO_REMOVE)
 # Define a set of characters we would expect to be replaced
 INVALID_URL_CHARS = [
-    chr(x) for x in range(127) if chr(x) not in LDH_ASCII_CHARS
+    chr(x) for x in range(127) if chr(x) not in SKIPED_CHARS
 ]
 for separator in [":", ".", "/", "#", "?", "@", "[", "]"]:
     # Remove from the set characters that either separate hostname parts (":",
