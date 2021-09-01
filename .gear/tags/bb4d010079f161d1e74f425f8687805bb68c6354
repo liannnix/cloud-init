@@ -1,0 +1,20 @@
+object 03ee10cd378773fab50eacf6fce3c55e8f828879
+type commit
+tag 21.3
+tagger James Falcon <therealfalcon@gmail.com> 1629741153 -0500
+
+Release 21.3
+-----BEGIN PGP SIGNATURE-----
+
+iQHMBAABCgA2FiEEsyC5UhjFbFFc1+BoZ0j1UGIrpdQFAmEj4GEYHHRoZXJlYWxm
+YWxjb25AZ21haWwuY29tAAoJEGdI9VBiK6XUSdUMALSCCK0DQUjwmIpLIo03IpPY
+bTM9P1OypZJi9wT4ZR53uyyx3OWmn0hSRDIdOjWj2D4BIfz/Sjm6BFSMrsNOS5B9
+AMWqC7yew4+UUGjXK5Bx8rOi0U0grpOPcaOxTSlT3ZL8fRNpFi5yfieJ8Zdtjn4z
+8xWcx8Bs+V6Mp8n5yr9THBzxb17EuyLSu3/eU8q3DnAY/fb1vTwMyPyogaPAcICu
+8qdjSLCEqkh35z7mVwwc/oO6uU+KUuPUdI5eYiuFRzjuRAw3/s4hrRaUhS3V0HiT
+UoRUDScnMUH6x5E+2Ts23ORKsu8zk7gJLknlkh1hlt4mxeq+rJWeMhZlzkt5F278
+Xa8OscrCB2SYcdxhUcyUZX+sYamoGU/ytttnrNrNadch13pb4C0hM0A+qBQphawa
+UfWeYLLjH8T0NQgrRMpXuxtSwfMmxvKW7lvkMKRh/CyvpzKxQouYhG/UgSTT0lE7
+fptoAu7tX3OabJfprSbVXMAkiEThMbLHC2/BfoiZEQ==
+=QT+L
+-----END PGP SIGNATURE-----
