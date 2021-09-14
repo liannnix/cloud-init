@@ -227,6 +227,9 @@ class Distro(distros.Distro):
         cmd.append("--quiet")
         cmd.append("--assume-yes")
 
+        if command == "upgrade":
+            command = "dist-upgrade"
+
         # Comand is the operation, such as install
         cmd.append(command)
 
