@@ -3,6 +3,7 @@ import pytest
 from io import StringIO
 from paramiko.ssh_exception import SSHException
 
+from tests.integration_tests.clouds import ImageSpecification
 from tests.integration_tests.instances import IntegrationInstance
 from tests.integration_tests.util import get_test_rsa_keypair
 
@@ -37,9 +38,15 @@ def common_verify(client, expected_keys):
         # Ensure key is in the key file
         contents = client.read_from_file(filename)
         if user in ['ubuntu', 'root']:
-            # Our personal public key gets added by pycloudlib
             lines = contents.split('\n')
-            assert len(lines) == 2
+            if user == 'root':
+                # Our personal public key gets added by pycloudlib in
+                # addition to the default `ssh_authorized_keys`
+                assert len(lines) == 2
+            else:
+                # Clouds will insert the keys we've added to our accounts
+                # or for our launches
+                assert len(lines) >= 2
             assert keys.public_key.strip() in contents
         else:
             assert contents.strip() == keys.public_key.strip()
@@ -77,7 +84,12 @@ def common_verify(client, expected_keys):
         # Ensure we haven't messed with any /home permissions
         # See LP: #1940233
         home_dir = '/home/{}'.format(user)
-        home_perms = '755'
+        # Home permissions aren't consistent between releases. On ubuntu
+        # this can change to 750 once focal is unsupported.
+        if ImageSpecification.from_os_image().release in ("bionic", "focal"):
+            home_perms = '755'
+        else:
+            home_perms = '750'
         if user == 'root':
             home_dir = '/root'
             home_perms = '700'
