@@ -14,6 +14,7 @@ Source0: %name-%version.tar
 Source1: cloud-init-alt.cfg
 Source2: 01_netplan.cfg
 Source3: cloud-init-tmpfiles.conf
+Source4: 01_etcnet.cfg
 
 Source11: cloud-config
 Source12: cloud-final
@@ -76,6 +77,14 @@ License: GPLv3
 %description config-netplan
 %summary.
 
+%package config-etcnet
+Summary: Cloud config option use etcnet network render
+Group:   System/Configuration/Boot and Init
+License: GPLv3
+
+%description config-etcnet
+%summary.
+
 %prep
 %setup
 %patch1 -p1
@@ -89,6 +98,7 @@ License: GPLv3
 install -pD -m644 %SOURCE1 %buildroot%_sysconfdir/cloud/cloud.cfg
 install -pD -m644 %SOURCE2 %buildroot%_sysconfdir/cloud/cloud.cfg.d/
 install -pD -m644 %SOURCE3 %buildroot%_tmpfilesdir/cloud-init.conf
+install -pD -m644 %SOURCE4 %buildroot%_sysconfdir/cloud/cloud.cfg.d/
 install -pD -m755 %SOURCE11 %buildroot%_initdir/cloud-config
 install -pD -m755 %SOURCE12 %buildroot%_initdir/cloud-final
 install -pD -m755 %SOURCE13 %buildroot%_initdir/cloud-init
@@ -124,6 +134,9 @@ make unittest
 %files config-netplan
 %config            %_sysconfdir/cloud/cloud.cfg.d/01_netplan.cfg
 
+%files config-etcnet
+%config            %_sysconfdir/cloud/cloud.cfg.d/01_etcnet.cfg
+
 %files
 %doc ChangeLog TODO.rst
 %dir               %_sysconfdir/cloud
@@ -131,6 +144,7 @@ make unittest
 %dir               %_sysconfdir/cloud/cloud.cfg.d
 %config(noreplace) %_sysconfdir/cloud/cloud.cfg.d/*.cfg
 %exclude           %_sysconfdir/cloud/cloud.cfg.d/01_netplan.cfg
+%exclude           %_sysconfdir/cloud/cloud.cfg.d/01_etcnet.cfg
 %doc               %_sysconfdir/cloud/cloud.cfg.d/README
 %dir               %_sysconfdir/cloud/templates
 %config(noreplace) %_sysconfdir/cloud/templates/*
