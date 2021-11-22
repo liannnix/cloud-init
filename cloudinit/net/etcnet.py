@@ -55,7 +55,11 @@ class Renderer(renderer.Renderer):
             iface_name = iface['name']
             subnets = iface.get('subnets', [])
             res = {}
+            dhcp = False
             for s in subnets:
+                if s['type'] == 'dhcp4':
+                    dhcp = True
+                    continue
                 o = res.get('address', [])
                 o.append("%s/%s" % (s['address'], s['prefix']))
                 res['address'] = o
@@ -73,11 +77,16 @@ class Renderer(renderer.Renderer):
             opts = [
               "ONBOOT=yes",
               "DISABLED=no",
-              "BOOTPROTO=static",
               "CONFIG_IPV4=yes",
               "CONFIG_WIRELESS=no",
               "TYPE=eth",
               "NM_CONTROLLED=no"]
+            dhcp_opts = ["BOOTPROTO=dhcp\n"]
+            static_opts = ["BOOTPROTO=static\n"]
+            if dhcp:
+                opts += dhcp_opts
+            else:
+                opts += static_opts
             opts_path = options_path % ({'base': base_etcnet_dir, 'name': iface_name})
             content[opts_path] = '\n'.join(opts)
 
