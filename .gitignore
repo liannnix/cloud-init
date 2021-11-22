@@ -20,6 +20,7 @@ stage
 .vscode/
 htmlcov/
 tags
+*~
 
 # Ignore packaging artifacts
 cloud-init.dsc
