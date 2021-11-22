@@ -74,6 +74,10 @@ Summary: Cloud config option use netplan network render
 Group:   System/Configuration/Boot and Init
 License: GPLv3
 
+Requires: cloud-init >= 21.3
+Requires: netplan
+Conflicts: cloud-init-config-etcnet
+
 %description config-netplan
 %summary.
 
@@ -81,6 +85,10 @@ License: GPLv3
 Summary: Cloud config option use etcnet network render
 Group:   System/Configuration/Boot and Init
 License: GPLv3
+
+Requires: cloud-init >= 21.3
+Requires: etcnet
+Conflicts: cloud-init-config-netplan
 
 %description config-etcnet
 %summary.
