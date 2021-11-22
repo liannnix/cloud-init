@@ -2,7 +2,7 @@
 
 Name:    cloud-init
 Version: 21.4
-Release: alt1
+Release: alt2
 
 Summary: Cloud instance init scripts
 Group:   System/Configuration/Boot and Init
@@ -171,6 +171,14 @@ make unittest
 %dir %_sharedstatedir/cloud
 
 %changelog
+* Mon Nov 22 2021 Andrey Limachko <liannnix@altlinux.org> 21.4-alt2
+- When using sudo add user to the wheel group
+- Add DHCP interface configuration support for etcnet
+- Add config-etcnet package for etcnet render
+- Add Requires and Conflicts for config subpackages
+- Set netplan network renderer to default
+- Add etcnet activator and activator cfg variable
+
 * Mon Nov 08 2021 Mikhail Gordeev <obirvalger@altlinux.org> 21.4-alt1
 - 21.4
 
