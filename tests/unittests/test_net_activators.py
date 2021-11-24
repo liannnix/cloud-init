@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from cloudinit.net.activators import (
+    NAME_TO_ACTIVATOR,
     DEFAULT_PRIORITY,
     search_activator,
     select_activator,
@@ -12,7 +13,8 @@ from cloudinit.net.activators import (
     IfUpDownActivator,
     NetplanActivator,
     NetworkManagerActivator,
-    NetworkdActivator
+    NetworkdActivator,
+    EtcnetActivator
 )
 from cloudinit.net.network_state import parse_net_config_data
 from cloudinit.safeyaml import load
@@ -60,18 +62,18 @@ def unavailable_mocks():
 class TestSearchAndSelect:
     def test_defaults(self, available_mocks):
         resp = search_activator()
-        assert resp == DEFAULT_PRIORITY
+        assert resp == list(NAME_TO_ACTIVATOR.values())
 
         activator = select_activator()
-        assert activator == DEFAULT_PRIORITY[0]
+        assert activator == list(NAME_TO_ACTIVATOR.values())[0]
 
     def test_priority(self, available_mocks):
-        new_order = [NetplanActivator, NetworkManagerActivator]
+        new_order = ['netplan', 'NetworkManager']
         resp = search_activator(priority=new_order)
-        assert resp == new_order
+        assert resp == [NAME_TO_ACTIVATOR[new_order[0]],NAME_TO_ACTIVATOR[new_order[1]]]
 
         activator = select_activator(priority=new_order)
-        assert activator == new_order[0]
+        assert activator == NAME_TO_ACTIVATOR[new_order[0]]
 
     def test_target(self, available_mocks):
         search_activator(target='/tmp')
@@ -84,10 +86,10 @@ class TestSearchAndSelect:
            return_value=False)
     def test_first_not_available(self, m_available, available_mocks):
         resp = search_activator()
-        assert resp == DEFAULT_PRIORITY[1:]
+        assert resp == list(NAME_TO_ACTIVATOR.values())[1:]
 
         resp = select_activator()
-        assert resp == DEFAULT_PRIORITY[1]
+        assert resp == list(NAME_TO_ACTIVATOR.values())[1]
 
     def test_priority_not_exist(self, available_mocks):
         with pytest.raises(ValueError):

@@ -7,6 +7,7 @@ from typing import Iterable, List, Type
 from cloudinit import subp
 from cloudinit import util
 from cloudinit.net.eni import available as eni_available
+from cloudinit.net.etcnet import available as etcnet_available
 from cloudinit.net.netplan import available as netplan_available
 from cloudinit.net.networkd import available as networkd_available
 from cloudinit.net.network_state import NetworkState
@@ -109,6 +110,38 @@ class IfUpDownActivator(NetworkActivator):
         """
         cmd = ['ifup', device_name]
         return _alter_interface(cmd, device_name)
+
+    @staticmethod
+    def bring_down_interface(device_name: str) -> bool:
+        """Bring up interface using ifup.
+
+        Return True is successful, otherwise return False
+        """
+        cmd = ['ifdown', device_name]
+        return _alter_interface(cmd, device_name)
+
+
+class EtcnetActivator(NetworkActivator):
+    # Note that we're not overriding bring_up_interfaces to pass something
+    # like ifup --all because it isn't supported everywhere.
+    # E.g., NetworkManager has a ifupdown plugin that requires the name
+    # of a specific connection.
+    @staticmethod
+    def available(target=None) -> bool:
+        """Return true if ifupdown can be used on this system."""
+        return etcnet_available(target=target)
+
+    @staticmethod
+    def bring_up_interface(device_name: str) -> bool:
+        """Bring up interface using ifup.
+
+        Return True is successful, otherwise return False
+        """
+        cmd = ['ifdown', device_name]
+        down = _alter_interface(cmd, device_name)
+        cmd = ['ifup', device_name]
+        up = _alter_interface(cmd, device_name)
+        return down and up
 
     @staticmethod
     def bring_down_interface(device_name: str) -> bool:
@@ -239,13 +272,22 @@ class NetworkdActivator(NetworkActivator):
         return _alter_interface(cmd, device_name)
 
 
+NAME_TO_ACTIVATOR = {
+    "eni": IfUpDownActivator,
+    "NetworkManager": NetworkManagerActivator,
+    "netplan": NetplanActivator,
+    "networkd": NetworkdActivator,
+    "etcnet": EtcnetActivator,
+}
+
 # This section is mostly copied and pasted from renderers.py. An abstract
 # version to encompass both seems overkill at this point
 DEFAULT_PRIORITY = [
-    IfUpDownActivator,
-    NetworkManagerActivator,
-    NetplanActivator,
-    NetworkdActivator,
+    "eni",
+    "NetworkManager",
+    "netplan",
+    "networkd",
+    "etcnet",
 ]
 
 
@@ -254,13 +296,18 @@ def search_activator(
 ) -> List[Type[NetworkActivator]]:
     if priority is None:
         priority = DEFAULT_PRIORITY
-
-    unknown = [i for i in priority if i not in DEFAULT_PRIORITY]
+    available = NAME_TO_ACTIVATOR
+    unknown = [i for i in priority if i not in available]
     if unknown:
         raise ValueError(
             "Unknown activators provided in priority list: %s" % unknown)
-
-    return [activator for activator in priority if activator.available(target)]
+    found = []
+    for name in priority:
+        activator_mod = available[name]
+        if activator_mod.available(target):
+            cur = activator_mod
+            found.append(cur)
+    return found
 
 
 def select_activator(priority=None, target=None) -> Type[NetworkActivator]:

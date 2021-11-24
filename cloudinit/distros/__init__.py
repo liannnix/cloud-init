@@ -226,9 +226,11 @@ class Distro(persistence.CloudInitPickleMixin, metaclass=abc.ABCMeta):
                 netconfig, bring_up=bring_up)
 
         # Now try to bring them up
+        priority = util.get_cfg_by_path(
+            self._cfg, ('network', 'activators'), None)
         if bring_up:
             LOG.debug('Bringing up newly configured network interfaces')
-            network_activator = activators.select_activator()
+            network_activator = activators.select_activator(priority=priority)
             network_activator.bring_up_all_interfaces(network_state)
         else:
             LOG.debug("Not bringing up newly configured network interfaces")
