@@ -60,9 +60,10 @@ def _netdev_info_iproute(ipaddr_out):
             devs[dev_name]['ipv6'].append(m.groupdict())
         elif 'inet' in line:
             m = re.match(
-                r'\s+inet\s(?P<cidr4>\S+)(\sbrd\s(?P<bcast>\S+))?\sscope\s'
+                r'\s+inet\s(?P<cidr4>\S+).*(\sbrd\s(?P<bcast>\S+))?\sscope\s'
                 r'(?P<scope>\S+).*', line)
             if not m:
+                print(line)
                 LOG.warning(
                     'Could not parse ip addr show: (line:%d) %s', num, line)
                 continue
